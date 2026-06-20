@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import type { ComponentProps } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -621,7 +622,7 @@ export default function App() {
       </View>
       {!isFirebaseConfigured && (
         <View style={styles.notice}>
-          <Ionicons name="construct-outline" size={18} color="#75530e" />
+          <Ionicons name="construct-outline" size={22} color="#0f766e" />
           <Text style={styles.noticeText}>Demo mode: add Firebase env values to connect live auth, chat, jobs, media, and notifications.</Text>
         </View>
       )}
@@ -1096,21 +1097,23 @@ function ShootRequestForm({
   };
 
   return (
-    <View style={styles.adminPanel}>
-      <Text style={styles.smallTitle}>Request a Project Shoot</Text>
-      <TextInput
-        style={styles.input}
+    <View style={styles.shootRequestCard}>
+      <Text style={styles.formTitle}>Request a Project Shoot</Text>
+      <IconTextInput
+        icon="person-outline"
         placeholder="Your name or business name"
         value={requesterName}
         onChangeText={setRequesterName}
         textContentType="organizationName"
       />
-      <TextInput style={styles.input} placeholder="Project name" value={title} onChangeText={setTitle} />
-      <SecondaryButton
-        label={requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
-        icon="calendar-outline"
-        onPress={() => setShowDatePicker((current) => !current)}
-      />
+      <IconTextInput icon="document-outline" placeholder="Project name" value={title} onChangeText={setTitle} />
+      <Pressable style={styles.formSelectRow} onPress={() => setShowDatePicker((current) => !current)}>
+        <Ionicons name="calendar-outline" size={22} color="#8b95a1" />
+        <Text style={[styles.formSelectText, !requestedDate && styles.formPlaceholderText]}>
+          {requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
+        </Text>
+        <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+      </Pressable>
       {showDatePicker && (
         <DateTimePicker
           value={requestedDate ?? tomorrow}
@@ -1123,8 +1126,8 @@ function ShootRequestForm({
           }}
         />
       )}
-      <TextInput
-        style={styles.input}
+      <IconTextInput
+        icon="location-outline"
         placeholder="Project address"
         value={projectAddress}
         onChangeText={setProjectAddress}
@@ -1141,36 +1144,41 @@ function ShootRequestForm({
         </View>
       )}
       <Text style={styles.formLabel}>Check all that apply</Text>
-      <View style={styles.statusGrid}>
+      <View style={styles.serviceGrid}>
         {shootServices.map((service) => {
           const active = services.includes(service.value);
           return (
             <Pressable
               key={service.value}
-              style={[styles.statusButton, active && styles.activeStatusButton]}
+              style={[styles.serviceButton, active && styles.activeServiceButton]}
               onPress={() => toggleService(service.value)}
             >
-              <Text style={[styles.statusButtonText, active && styles.activeStatusButtonText]}>{service.label}</Text>
+              <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : '#0f766e'} />
+              <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{service.label}</Text>
             </Pressable>
           );
         })}
       </View>
       {services.includes('other') && (
         <TextInput
-          style={[styles.input, styles.noteInput]}
+          style={[styles.input, styles.noteInput, styles.modernTextArea]}
           placeholder="Describe the project"
           value={otherDescription}
           onChangeText={setOtherDescription}
           multiline
         />
       )}
-      <TextInput
-        style={[styles.input, styles.noteInput]}
-        placeholder="Anything else I should know?"
-        value={details}
-        onChangeText={setDetails}
-        multiline
-      />
+      <View style={[styles.formInputRow, styles.formTextAreaRow]}>
+        <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
+        <TextInput
+          style={[styles.formTextInput, styles.formTextArea]}
+          placeholder="Anything else I should know?"
+          placeholderTextColor="#a4abb4"
+          value={details}
+          onChangeText={setDetails}
+          multiline
+        />
+      </View>
       <Pressable
         style={styles.radioRow}
         onPress={() => {
@@ -1182,22 +1190,25 @@ function ShootRequestForm({
           }
         }}
       >
-        <Ionicons name={isRecurring ? 'radio-button-on' : 'radio-button-off'} size={20} color="#0f766e" />
-        <Text style={styles.radioText}>Recurring shoot</Text>
+        <Ionicons name={isRecurring ? 'radio-button-on' : 'ellipse-outline'} size={30} color="#0f766e" />
+        <View style={styles.flexOne}>
+          <Text style={styles.radioText}>Recurring shoot</Text>
+          <Text style={styles.radioSubText}>This is an ongoing or repeating project</Text>
+        </View>
       </Pressable>
       {isRecurring && (
         <View style={styles.recurringBox}>
           <Text style={styles.formLabel}>Frequency</Text>
-          <View style={styles.statusGrid}>
+          <View style={styles.serviceGrid}>
             {recurrenceFrequencies.map((frequency) => {
               const active = recurrenceFrequency === frequency.value;
               return (
                 <Pressable
                   key={frequency.value}
-                  style={[styles.statusButton, active && styles.activeStatusButton]}
+                  style={[styles.serviceButton, active && styles.activeServiceButton]}
                   onPress={() => setRecurrenceFrequency(frequency.value)}
                 >
-                  <Text style={[styles.statusButtonText, active && styles.activeStatusButtonText]}>
+                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>
                     {frequency.label}
                   </Text>
                 </Pressable>
@@ -1205,18 +1216,20 @@ function ShootRequestForm({
             })}
           </View>
           {recurrenceFrequency === 'other' && (
-            <TextInput
-              style={styles.input}
+            <IconTextInput
+              icon="repeat-outline"
               placeholder="Custom recurrence"
               value={recurrenceOther}
               onChangeText={setRecurrenceOther}
             />
           )}
-          <SecondaryButton
-            label={recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
-            icon="calendar-clear-outline"
-            onPress={() => setShowRecurrenceEndPicker((current) => !current)}
-          />
+          <Pressable style={styles.formSelectRow} onPress={() => setShowRecurrenceEndPicker((current) => !current)}>
+            <Ionicons name="calendar-clear-outline" size={22} color="#8b95a1" />
+            <Text style={[styles.formSelectText, !recurrenceEndDate && styles.formPlaceholderText]}>
+              {recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
+            </Text>
+            <Ionicons name={showRecurrenceEndPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+          </Pressable>
           {showRecurrenceEndPicker && (
             <DateTimePicker
               value={recurrenceEndDate ?? requestedDate ?? tomorrow}
@@ -1231,7 +1244,7 @@ function ShootRequestForm({
           )}
         </View>
       )}
-      <PrimaryButton label="Send Shoot Request" icon="send-outline" onPress={submit} />
+      <PrimaryButton label="Send Shoot Request" icon="paper-plane-outline" onPress={submit} />
     </View>
   );
 }
@@ -1646,6 +1659,37 @@ function PrimaryButton({ label, icon, onPress }: { label: string; icon: keyof ty
   );
 }
 
+function IconTextInput({
+  icon,
+  multiline,
+  onChangeText,
+  placeholder,
+  textContentType,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  multiline?: boolean;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  textContentType?: ComponentProps<typeof TextInput>['textContentType'];
+  value: string;
+}) {
+  return (
+    <View style={[styles.formInputRow, multiline && styles.formTextAreaRow]}>
+      <Ionicons name={icon} size={22} color="#8b95a1" />
+      <TextInput
+        style={[styles.formTextInput, multiline && styles.formTextArea]}
+        placeholder={placeholder}
+        placeholderTextColor="#a4abb4"
+        value={value}
+        onChangeText={onChangeText}
+        textContentType={textContentType}
+        multiline={multiline}
+      />
+    </View>
+  );
+}
+
 function SecondaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   return (
     <Pressable style={styles.secondaryButton} onPress={onPress}>
@@ -1718,6 +1762,21 @@ function formatServices(services: ShootService[]) {
   return services
     .map((service) => shootServices.find((item) => item.value === service)?.label ?? service)
     .join(', ');
+}
+
+function serviceIcon(service: ShootService): keyof typeof Ionicons.glyphMap {
+  const icons: Record<ShootService, keyof typeof Ionicons.glyphMap> = {
+    drone_video: 'videocam-outline',
+    drone_photo: 'camera-outline',
+    ground_video: 'videocam-outline',
+    ground_photo: 'image-outline',
+    edit_photos: 'options-outline',
+    edit_into_video: 'film-outline',
+    construction: 'construct-outline',
+    actors: 'person-outline',
+    other: 'ellipsis-horizontal-circle-outline',
+  };
+  return icons[service];
 }
 
 function formatRecurrence(request: ShootRequest) {
@@ -1910,7 +1969,7 @@ async function scheduleLocalNotification(title: string, body: string) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#f7faf8',
+    backgroundColor: '#fbfcfc',
   },
   header: {
     paddingHorizontal: 18,
@@ -1951,19 +2010,20 @@ const styles = StyleSheet.create({
   },
   notice: {
     margin: 12,
-    padding: 10,
+    padding: 14,
     borderRadius: 8,
-    backgroundColor: '#fff7dc',
+    backgroundColor: '#f7fbfb',
     borderWidth: 1,
-    borderColor: '#f1d27c',
+    borderColor: '#e1e8e8',
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 12,
   },
   noticeText: {
     flex: 1,
-    color: '#75530e',
-    fontSize: 12,
-    lineHeight: 17,
+    color: '#315c5a',
+    fontSize: 14,
+    lineHeight: 20,
   },
   content: {
     flex: 1,
@@ -1981,6 +2041,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 14,
     paddingBottom: 32,
+    gap: 4,
   },
   selector: {
     maxHeight: 48,
@@ -2021,7 +2082,7 @@ const styles = StyleSheet.create({
   },
   smallTitle: {
     color: '#17221d',
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
   },
@@ -2108,6 +2169,12 @@ const styles = StyleSheet.create({
   noteInput: {
     minHeight: 74,
     marginBottom: 12,
+  },
+  modernTextArea: {
+    borderColor: '#e1e5e8',
+    color: '#17221d',
+    fontSize: 15,
+    marginBottom: 0,
   },
   sendButton: {
     width: 40,
@@ -2218,12 +2285,76 @@ const styles = StyleSheet.create({
   adminPanel: {
     marginHorizontal: 14,
     marginBottom: 14,
-    padding: 14,
+    padding: 18,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dce5df',
-    gap: 10,
+    borderColor: '#e4e8e6',
+    gap: 12,
+  },
+  shootRequestCard: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    padding: 18,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e4e8e6',
+    gap: 12,
+  },
+  formTitle: {
+    color: '#101820',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  formInputRow: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e5e8',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#ffffff',
+  },
+  formTextInput: {
+    flex: 1,
+    color: '#17221d',
+    fontSize: 15,
+    minHeight: 44,
+  },
+  formTextAreaRow: {
+    minHeight: 78,
+    alignItems: 'flex-start',
+    paddingTop: 14,
+  },
+  formTextArea: {
+    minHeight: 56,
+    textAlignVertical: 'top',
+    paddingTop: 0,
+  },
+  formSelectRow: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e5e8',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#ffffff',
+  },
+  formSelectText: {
+    flex: 1,
+    color: '#17221d',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  formPlaceholderText: {
+    color: '#a4abb4',
+    fontWeight: '500',
   },
   requestCard: {
     borderRadius: 8,
@@ -2264,9 +2395,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   formLabel: {
-    color: '#405048',
-    fontSize: 13,
+    color: '#17221d',
+    fontSize: 16,
     fontWeight: '800',
+    marginTop: 10,
   },
   suggestionBox: {
     borderRadius: 8,
@@ -2292,25 +2424,32 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   radioRow: {
-    minHeight: 42,
+    minHeight: 60,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#e1e5e8',
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#f0f5f2',
+    gap: 12,
+    backgroundColor: '#ffffff',
   },
   radioText: {
-    color: '#17221d',
+    color: '#101820',
     fontWeight: '800',
+  },
+  radioSubText: {
+    color: '#7c8590',
+    fontSize: 12,
+    marginTop: 2,
   },
   recurringBox: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
-    padding: 12,
-    gap: 10,
-    backgroundColor: '#fbfdfc',
+    borderColor: '#e1e5e8',
+    padding: 14,
+    gap: 12,
+    backgroundColor: '#fbfcfc',
   },
   distancePanel: {
     borderRadius: 8,
@@ -2332,6 +2471,35 @@ const styles = StyleSheet.create({
     color: '#405048',
     fontSize: 14,
     fontWeight: '700',
+  },
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 6,
+  },
+  serviceButton: {
+    minHeight: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e5e8',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff',
+  },
+  activeServiceButton: {
+    backgroundColor: '#0f766e',
+    borderColor: '#0f766e',
+  },
+  serviceButtonText: {
+    color: '#17221d',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  activeServiceButtonText: {
+    color: '#ffffff',
   },
   statusGrid: {
     flexDirection: 'row',
@@ -2495,7 +2663,7 @@ const styles = StyleSheet.create({
     color: '#0f766e',
   },
   primaryButton: {
-    minHeight: 44,
+    minHeight: 52,
     borderRadius: 8,
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -2506,6 +2674,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#ffffff',
+    fontSize: 16,
     fontWeight: '800',
   },
   secondaryButton: {
