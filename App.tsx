@@ -9,6 +9,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { ComponentProps } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -192,7 +193,7 @@ type Coordinate = {
 const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'website', label: 'Website', icon: 'globe-outline' },
   { key: 'chat', label: 'Chat', icon: 'chatbubble-ellipses-outline' },
-  { key: 'jobs', label: 'Jobs', icon: 'briefcase-outline' },
+  { key: 'jobs', label: 'Projects', icon: 'briefcase-outline' },
   { key: 'account', label: 'Account', icon: 'person-circle-outline' },
 ];
 
@@ -437,7 +438,7 @@ export default function App() {
           : item,
       ),
     }));
-    scheduleLocalNotification('Job status updated', `${job.clientName} would be notified: ${statusLabel(status)}.`);
+    scheduleLocalNotification('Project status updated', `${job.clientName} would be notified: ${statusLabel(status)}.`);
   };
 
   const updateJobTitle = async (job: Job, title: string) => {
@@ -637,7 +638,7 @@ export default function App() {
       {!isFirebaseConfigured && (
         <View style={styles.notice}>
           <Ionicons name="construct-outline" size={22} color="#0f766e" />
-          <Text style={styles.noticeText}>Demo mode: add Firebase env values to connect live auth, chat, jobs, media, and notifications.</Text>
+          <Text style={styles.noticeText}>Demo mode: add Firebase env values to connect live auth, chat, projects, media, and notifications.</Text>
         </View>
       )}
       <View style={styles.content}>{renderContent()}</View>
@@ -849,7 +850,7 @@ function JobsScreen({
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
         {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
-        <EmptyState title="No jobs yet" body="Assigned jobs and progress updates will appear here." />
+        <EmptyState title="No projects yet" body="Assigned projects and progress updates will appear here." />
       </ScrollView>
     );
   }
@@ -922,7 +923,7 @@ function JobsScreen({
         </View>
       )}
       <View style={styles.jobsList}>
-        <Text style={styles.smallTitle}>Jobs</Text>
+        <Text style={styles.smallTitle}>Projects</Text>
         {jobs.map((job) => (
           <Pressable
             key={job.id}
@@ -995,10 +996,10 @@ function JobsScreen({
       )}
       {isAdmin && (
         <View style={styles.adminPanel}>
-          <Text style={styles.smallTitle}>Admin job controls</Text>
+          <Text style={styles.smallTitle}>Admin project controls</Text>
           <TextInput
             style={styles.input}
-            placeholder="Job name"
+            placeholder="Project name"
             value={draftTitle}
             onChangeText={setDraftTitle}
             onBlur={() => onUpdateTitle(selectedJob, draftTitle)}
@@ -1082,6 +1083,8 @@ function ShootRequestForm({
   const [recurrenceOther, setRecurrenceOther] = useState('');
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(null);
   const [showRecurrenceEndPicker, setShowRecurrenceEndPicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [showSentBanner, setShowSentBanner] = useState(false);
 
   const filteredAddresses = useMemo(() => {
     const needle = projectAddress.trim().toLowerCase();
@@ -1098,6 +1101,7 @@ function ShootRequestForm({
   };
 
   const submit = async () => {
+    if (submitting) return;
     const selectedOther = services.includes('other');
     const missingRequired =
       !requesterName.trim() ||
@@ -1120,32 +1124,38 @@ function ShootRequestForm({
       return;
     }
 
-    await onSubmit({
-      requesterName: requesterName.trim(),
-      title: title.trim(),
-      requestedWhen: formatProjectDate(requestedDate),
-      requestedDate: requestedDate.toISOString(),
-      projectAddress: projectAddress.trim(),
-      services,
-      otherDescription: selectedOther ? otherDescription.trim() : undefined,
-      details: details.trim(),
-      isRecurring,
-      recurrenceFrequency: isRecurring ? recurrenceFrequency ?? undefined : undefined,
-      recurrenceOther: isRecurring && recurrenceFrequency === 'other' ? recurrenceOther.trim() : undefined,
-      recurrenceEndDate: isRecurring && recurrenceEndDate ? recurrenceEndDate.toISOString() : undefined,
-    });
-    setTitle('');
-    setRequesterName(user.displayName);
-    setRequestedDate(null);
-    setProjectAddress('');
-    setDetails('');
-    setServices([]);
-    setOtherDescription('');
-    setIsRecurring(false);
-    setRecurrenceFrequency(null);
-    setRecurrenceOther('');
-    setRecurrenceEndDate(null);
-    Alert.alert('Request sent', `${user.displayName}, your shoot request was sent.`);
+    setSubmitting(true);
+    setShowSentBanner(false);
+    try {
+      await onSubmit({
+        requesterName: requesterName.trim(),
+        title: title.trim(),
+        requestedWhen: formatProjectDate(requestedDate),
+        requestedDate: requestedDate.toISOString(),
+        projectAddress: projectAddress.trim(),
+        services,
+        otherDescription: selectedOther ? otherDescription.trim() : undefined,
+        details: details.trim(),
+        isRecurring,
+        recurrenceFrequency: isRecurring ? recurrenceFrequency ?? undefined : undefined,
+        recurrenceOther: isRecurring && recurrenceFrequency === 'other' ? recurrenceOther.trim() : undefined,
+        recurrenceEndDate: isRecurring && recurrenceEndDate ? recurrenceEndDate.toISOString() : undefined,
+      });
+      setTitle('');
+      setRequesterName(user.displayName);
+      setRequestedDate(null);
+      setProjectAddress('');
+      setDetails('');
+      setServices([]);
+      setOtherDescription('');
+      setIsRecurring(false);
+      setRecurrenceFrequency(null);
+      setRecurrenceOther('');
+      setRecurrenceEndDate(null);
+      setShowSentBanner(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -1296,7 +1306,19 @@ function ShootRequestForm({
           )}
         </View>
       )}
-      <PrimaryButton label="Send Shoot Request" icon="paper-plane-outline" onPress={submit} />
+      {showSentBanner && (
+        <View style={styles.requestSentBanner}>
+          <Ionicons name="checkmark-circle-outline" size={22} color="#ffffff" />
+          <Text style={styles.requestSentText}>Request Sent!</Text>
+        </View>
+      )}
+      <PrimaryButton
+        label={submitting ? 'Sending Request...' : 'Send Shoot Request'}
+        icon="paper-plane-outline"
+        loading={submitting}
+        disabled={submitting}
+        onPress={submit}
+      />
     </View>
   );
 }
@@ -1758,10 +1780,22 @@ function FullscreenVideo({ uri }: { uri: string }) {
   );
 }
 
-function PrimaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+function PrimaryButton({
+  disabled,
+  icon,
+  label,
+  loading,
+  onPress,
+}: {
+  disabled?: boolean;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  loading?: boolean;
+  onPress: () => void;
+}) {
   return (
-    <Pressable style={styles.primaryButton} onPress={onPress}>
-      <Ionicons name={icon} size={18} color="#ffffff" />
+    <Pressable style={[styles.primaryButton, disabled && styles.disabledButton]} onPress={onPress} disabled={disabled}>
+      {loading ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name={icon} size={18} color="#ffffff" />}
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );
@@ -2632,6 +2666,21 @@ const styles = StyleSheet.create({
     color: '#7c8590',
     fontSize: 12,
     marginTop: 2,
+  },
+  requestSentBanner: {
+    minHeight: 52,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0f766e',
+  },
+  requestSentText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
   },
   recurringBox: {
     borderRadius: 8,
