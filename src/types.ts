@@ -66,6 +66,7 @@ export type Job = {
   address: string;
   homeBaseAddress?: string;
   routeDistanceMiles?: number;
+  routeTravelTimeMinutes?: number;
   routeDistanceStatus?: RouteDistanceStatus;
   routeDistanceUpdatedAt?: number;
   status: JobStatus;
@@ -99,6 +100,7 @@ export type ShootRequest = {
   projectAddress: string;
   homeBaseAddress?: string;
   routeDistanceMiles?: number;
+  routeTravelTimeMinutes?: number;
   routeDistanceStatus?: RouteDistanceStatus;
   routeDistanceUpdatedAt?: number;
   services: ShootService[];

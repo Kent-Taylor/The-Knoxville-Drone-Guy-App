@@ -41,9 +41,9 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 - `users/{uid}`: email, displayName, role, expoPushTokens, createdAt, updatedAt.
 - `chatThreads/{threadId}`: clientId, clientName, lastMessage, updatedAt.
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
-- `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, status, scheduledAt, liveLocation.
+- `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
-- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, services, otherDescription, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
 
 ## Shoot Request Intake
 
@@ -63,7 +63,7 @@ Do not store route history for v1. Store only the latest point and timestamp.
 
 The home base address is `742 Whitesburg Dr, Knoxville, TN 37918`. Route distance must mean driving distance, not straight-line distance.
 
-For v1 testing, the admin app opens Apple Maps directions from the home base to the project address. Future production mileage should be calculated in a Cloud Function with a true routing API, then stored in `routeDistanceMiles`. Pricing should remain separate until distance rates are finalized.
+For v1 testing, the app tries to calculate route distance and travel time automatically using address geocoding plus driving-route lookup, then stores `routeDistanceMiles` and `routeTravelTimeMinutes`. The Apple Maps button remains available for manual verification. Future production mileage should be calculated in a Cloud Function with a true routing API, then stored on the request/job. Pricing should remain separate until distance rates are finalized.
 
 ## Website Chat
 

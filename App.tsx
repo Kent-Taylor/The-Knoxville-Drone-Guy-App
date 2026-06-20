@@ -69,6 +69,7 @@ const addressSuggestions = [
   'Chapman Hwy, Knoxville, TN 37920',
   'Emory Rd, Powell, TN 37849',
 ];
+const routeCache = new Map<string, DrivingRouteResult | null>();
 const adminUser: AppUser = {
   uid: 'admin-demo',
   email: 'kent@theknoxvilledroneguy.com',
@@ -176,6 +177,14 @@ const initialData: AppData = {
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'account';
 type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
+type DrivingRouteResult = {
+  distanceMiles: number;
+  travelTimeMinutes: number;
+};
+type Coordinate = {
+  lat: number;
+  lon: number;
+};
 
 const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'website', label: 'Website', icon: 'globe-outline' },
@@ -434,13 +443,17 @@ export default function App() {
 
   const submitShootRequest = async (request: ShootRequestDraft) => {
     if (!user) return;
+    const route = await calculateDrivingRoute(HOME_BASE_ADDRESS, request.projectAddress);
     const shootRequest: ShootRequest = {
       ...request,
       id: `request-${Date.now()}`,
       clientId: user.uid,
       clientName: user.displayName,
       homeBaseAddress: HOME_BASE_ADDRESS,
-      routeDistanceStatus: 'not_checked',
+      routeDistanceMiles: route?.distanceMiles,
+      routeTravelTimeMinutes: route?.travelTimeMinutes,
+      routeDistanceStatus: route ? 'ready' : 'failed',
+      routeDistanceUpdatedAt: Date.now(),
       status: 'requested',
       createdAt: Date.now(),
     };
@@ -464,6 +477,7 @@ export default function App() {
       address: request.projectAddress,
       homeBaseAddress: request.homeBaseAddress ?? HOME_BASE_ADDRESS,
       routeDistanceMiles: request.routeDistanceMiles,
+      routeTravelTimeMinutes: request.routeTravelTimeMinutes,
       routeDistanceStatus: request.routeDistanceStatus ?? 'not_checked',
       routeDistanceUpdatedAt: request.routeDistanceUpdatedAt,
       status: 'scheduled',
@@ -822,7 +836,12 @@ function JobsScreen({
                 )}
                 {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
                 {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
-                <RouteDistancePanel projectAddress={request.projectAddress} routeDistanceMiles={request.routeDistanceMiles} />
+                <RouteDistancePanel
+                  projectAddress={request.projectAddress}
+                  routeDistanceMiles={request.routeDistanceMiles}
+                  routeTravelTimeMinutes={request.routeTravelTimeMinutes}
+                  routeDistanceStatus={request.routeDistanceStatus}
+                />
                 <View style={styles.rowActions}>
                   <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
                   <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
@@ -862,7 +881,12 @@ function JobsScreen({
       {isAdmin && (
         <View style={styles.adminPanel}>
           <Text style={styles.smallTitle}>Route Distance</Text>
-          <RouteDistancePanel projectAddress={selectedJob.address} routeDistanceMiles={selectedJob.routeDistanceMiles} />
+          <RouteDistancePanel
+            projectAddress={selectedJob.address}
+            routeDistanceMiles={selectedJob.routeDistanceMiles}
+            routeTravelTimeMinutes={selectedJob.routeTravelTimeMinutes}
+            routeDistanceStatus={selectedJob.routeDistanceStatus}
+          />
         </View>
       )}
       {showMap ? (
@@ -1352,18 +1376,70 @@ function AccountScreen({
 function RouteDistancePanel({
   projectAddress,
   routeDistanceMiles,
+  routeTravelTimeMinutes,
+  routeDistanceStatus,
 }: {
   projectAddress: string;
   routeDistanceMiles?: number;
+  routeTravelTimeMinutes?: number;
+  routeDistanceStatus?: ShootRequest['routeDistanceStatus'];
 }) {
+  const [calculatedRoute, setCalculatedRoute] = useState<DrivingRouteResult | null>(
+    typeof routeDistanceMiles === 'number' && typeof routeTravelTimeMinutes === 'number'
+      ? { distanceMiles: routeDistanceMiles, travelTimeMinutes: routeTravelTimeMinutes }
+      : null,
+  );
+  const [status, setStatus] = useState(routeDistanceStatus ?? 'not_checked');
+
+  useEffect(() => {
+    let active = true;
+    const savedRoute =
+      typeof routeDistanceMiles === 'number' && typeof routeTravelTimeMinutes === 'number'
+        ? { distanceMiles: routeDistanceMiles, travelTimeMinutes: routeTravelTimeMinutes }
+        : null;
+
+    if (savedRoute) {
+      setCalculatedRoute(savedRoute);
+      setStatus('ready');
+      return undefined;
+    }
+
+    setCalculatedRoute(null);
+    setStatus('checking');
+    calculateDrivingRoute(HOME_BASE_ADDRESS, projectAddress)
+      .then((route) => {
+        if (!active) return;
+        setCalculatedRoute(route);
+        setStatus(route ? 'ready' : 'failed');
+      })
+      .catch(() => {
+        if (!active) return;
+        setCalculatedRoute(null);
+        setStatus('failed');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectAddress, routeDistanceMiles, routeTravelTimeMinutes]);
+
+  const statusText =
+    status === 'checking'
+      ? 'Calculating route...'
+      : status === 'failed'
+        ? 'Could not calculate automatically'
+        : 'Driving route from home base';
+
   return (
     <View style={styles.distancePanel}>
       <View style={styles.distanceTextWrap}>
-        <Text style={styles.formLabel}>Driving route from home base</Text>
+        <Text style={styles.formLabel}>{statusText}</Text>
         <Text style={styles.distanceValue}>
-          {typeof routeDistanceMiles === 'number' ? `${routeDistanceMiles.toFixed(1)} miles` : 'Not calculated yet'}
+          {calculatedRoute ? `${calculatedRoute.distanceMiles.toFixed(1)} miles` : 'Distance unavailable'}
         </Text>
-        <Text style={styles.muted}>Testing placeholder: opens Apple Maps to show the real driving route distance.</Text>
+        <Text style={styles.distanceSubValue}>
+          {calculatedRoute ? `About ${formatTravelTime(calculatedRoute.travelTimeMinutes)}` : 'Tap Check Distance to open Apple Maps.'}
+        </Text>
       </View>
       <SecondaryButton
         label="Check Distance"
@@ -1469,13 +1545,102 @@ function getPasswordProblem(password: string) {
   return null;
 }
 
-function calculateRouteDistanceMiles() {
-  // Placeholder only. Replace with a server-side routing API; do not use straight-line GPS distance.
-  return null;
+async function calculateDrivingRoute(sourceAddress: string, destinationAddress: string): Promise<DrivingRouteResult | null> {
+  const cacheKey = `${sourceAddress.toLowerCase()}::${destinationAddress.toLowerCase()}`;
+  if (routeCache.has(cacheKey)) return routeCache.get(cacheKey) ?? null;
+
+  try {
+    const [source, destination] = await Promise.all([
+      geocodeAddress(sourceAddress),
+      geocodeAddress(destinationAddress),
+    ]);
+    if (!source || !destination) {
+      routeCache.set(cacheKey, null);
+      return null;
+    }
+
+    const coordinates = `${source.lon},${source.lat};${destination.lon},${destination.lat}`;
+    const routeUrl = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&alternatives=false&steps=false`;
+    const response = await fetch(routeUrl);
+    if (!response.ok) throw new Error(`Route lookup failed with ${response.status}`);
+    const payload = (await response.json()) as {
+      routes?: { distance?: number; duration?: number }[];
+    };
+    const route = payload.routes?.[0];
+    if (typeof route?.distance !== 'number' || typeof route.duration !== 'number') {
+      routeCache.set(cacheKey, null);
+      return null;
+    }
+
+    const result = {
+      distanceMiles: route.distance / 1609.344,
+      travelTimeMinutes: Math.max(1, Math.round(route.duration / 60)),
+    };
+    routeCache.set(cacheKey, result);
+    return result;
+  } catch {
+    routeCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+async function geocodeAddress(address: string): Promise<Coordinate | null> {
+  const censusResult = await geocodeAddressWithCensus(address);
+  if (censusResult) return censusResult;
+
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=${encodeURIComponent(address)}`;
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'TheKnoxvilleDroneGuyApp/1.0',
+    },
+  });
+  if (!response.ok) return null;
+  const results = (await response.json()) as { lat?: string; lon?: string }[];
+  const match = results[0];
+  if (!match?.lat || !match.lon) return null;
+  return {
+    lat: Number(match.lat),
+    lon: Number(match.lon),
+  };
+}
+
+async function geocodeAddressWithCensus(address: string): Promise<Coordinate | null> {
+  const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(
+    address,
+  )}&benchmark=Public_AR_Current&format=json`;
+  try {
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      result?: {
+        addressMatches?: {
+          coordinates?: {
+            x?: number;
+            y?: number;
+          };
+        }[];
+      };
+    };
+    const coordinates = payload.result?.addressMatches?.[0]?.coordinates;
+    if (typeof coordinates?.x !== 'number' || typeof coordinates.y !== 'number') return null;
+    return {
+      lat: coordinates.y,
+      lon: coordinates.x,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function formatTravelTime(minutes: number) {
+  if (minutes < 60) return `${minutes} min drive`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min drive` : `${hours} hr drive`;
 }
 
 function openAppleMapsRoute(projectAddress: string) {
-  calculateRouteDistanceMiles();
   const source = encodeURIComponent(HOME_BASE_ADDRESS);
   const destination = encodeURIComponent(projectAddress);
   Linking.openURL(`http://maps.apple.com/?saddr=${source}&daddr=${destination}&dirflg=d`);
@@ -1964,6 +2129,11 @@ const styles = StyleSheet.create({
     color: '#17221d',
     fontSize: 16,
     fontWeight: '800',
+  },
+  distanceSubValue: {
+    color: '#405048',
+    fontSize: 14,
+    fontWeight: '700',
   },
   statusGrid: {
     flexDirection: 'row',
