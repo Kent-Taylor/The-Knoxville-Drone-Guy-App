@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import type { ComponentProps } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -209,6 +211,7 @@ export default function App() {
   const [data, setData] = useState<AppData>(initialData);
   const [selectedThreadId, setSelectedThreadId] = useState(demoThread.id);
   const [selectedJobId, setSelectedJobId] = useState(demoJob.id);
+  const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -588,6 +591,7 @@ export default function App() {
         <ChatScreen
           isAdmin={isAdmin}
           messages={data.messages.filter((message) => message.threadId === selectedThread?.id)}
+          onOpenMedia={setSelectedMedia}
           onSend={sendMessage}
           selectedThread={selectedThread}
           setSelectedThreadId={setSelectedThreadId}
@@ -602,6 +606,7 @@ export default function App() {
           isAdmin={isAdmin}
           jobs={visibleJobs}
           onAcceptShootRequest={acceptShootRequest}
+          onOpenMedia={setSelectedMedia}
           onRequestShootDetails={requestShootDetails}
           onSubmitShootRequest={submitShootRequest}
           onEditUpdate={editJobUpdate}
@@ -636,6 +641,7 @@ export default function App() {
         </View>
       )}
       <View style={styles.content}>{renderContent()}</View>
+      <MediaViewer attachment={selectedMedia} onClose={() => setSelectedMedia(null)} />
       <View style={styles.tabBar}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
@@ -673,6 +679,7 @@ function WebsiteScreen() {
 function ChatScreen({
   isAdmin,
   messages,
+  onOpenMedia,
   onSend,
   selectedThread,
   setSelectedThreadId,
@@ -681,6 +688,7 @@ function ChatScreen({
 }: {
   isAdmin: boolean;
   messages: ChatMessage[];
+  onOpenMedia: (attachment: Attachment) => void;
   onSend: (body: string, attachment?: Attachment) => Promise<void>;
   selectedThread?: ChatThread;
   setSelectedThreadId: (threadId: string) => void;
@@ -754,8 +762,14 @@ function ChatScreen({
             <View key={message.id} style={[styles.messageBubble, mine ? styles.myMessage : styles.theirMessage]}>
               <Text style={styles.messageSender}>{message.senderName}</Text>
               <Text style={styles.messageText}>{message.body}</Text>
-              {message.attachment?.type === 'image' && <Image source={{ uri: message.attachment.uri }} style={styles.messageImage} />}
-              {message.attachment?.type === 'video' && <Text style={styles.attachmentText}>Video attached: {message.attachment.name ?? 'clip'}</Text>}
+              {message.attachment?.type === 'image' && (
+                <Pressable onPress={() => message.attachment && onOpenMedia(message.attachment)}>
+                  <Image source={{ uri: message.attachment.uri }} style={styles.messageImage} />
+                </Pressable>
+              )}
+              {message.attachment?.type === 'video' && (
+                <MediaAttachmentButton attachment={message.attachment} onPress={() => onOpenMedia(message.attachment!)} />
+              )}
             </View>
           );
         })}
@@ -794,6 +808,7 @@ function JobsScreen({
   jobs,
   onAcceptShootRequest,
   onEditUpdate,
+  onOpenMedia,
   onRequestShootDetails,
   onSubmitShootRequest,
   onUpdateStatus,
@@ -807,6 +822,7 @@ function JobsScreen({
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
   onEditUpdate: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
+  onOpenMedia: (attachment: Attachment) => void;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
   onSubmitShootRequest: (request: ShootRequestDraft) => Promise<void>;
   onUpdateStatus: (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => Promise<void>;
@@ -1031,6 +1047,7 @@ function JobsScreen({
             isAdmin={isAdmin}
             job={selectedJob}
             isLast={index === selectedJob.updates.length - 1}
+            onOpenMedia={onOpenMedia}
             onSave={onEditUpdate}
             update={update}
           />
@@ -1284,12 +1301,14 @@ function JobUpdateRow({
   isAdmin,
   isLast,
   job,
+  onOpenMedia,
   onSave,
   update,
 }: {
   isAdmin: boolean;
   isLast: boolean;
   job: Job;
+  onOpenMedia: (attachment: Attachment) => void;
   onSave: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   update: JobUpdate;
 }) {
@@ -1428,8 +1447,14 @@ function JobUpdateRow({
               <Ionicons name="time-outline" size={18} color="#8b95a1" />
               <Text style={styles.timelineTime}>{formatDateTime(new Date(update.createdAt))}</Text>
             </View>
-            {update.attachment?.type === 'image' && <Image source={{ uri: update.attachment.uri }} style={styles.updateImage} />}
-            {update.attachment?.type === 'video' && <Text style={styles.attachmentText}>Video attached: {update.attachment.name ?? 'clip'}</Text>}
+            {update.attachment?.type === 'image' && (
+              <Pressable onPress={() => update.attachment && onOpenMedia(update.attachment)}>
+                <Image source={{ uri: update.attachment.uri }} style={styles.updateImage} />
+              </Pressable>
+            )}
+            {update.attachment?.type === 'video' && (
+              <MediaAttachmentButton attachment={update.attachment} onPress={() => onOpenMedia(update.attachment!)} />
+            )}
           </>
         )}
       </View>
@@ -1678,6 +1703,54 @@ function RouteDistancePanel({
         onPress={() => openAppleMapsRoute(projectAddress)}
       />
     </View>
+  );
+}
+
+function MediaAttachmentButton({ attachment, onPress }: { attachment: Attachment; onPress: () => void }) {
+  return (
+    <Pressable style={styles.mediaAttachmentButton} onPress={onPress}>
+      <Ionicons name="play-circle-outline" size={24} color="#0f766e" />
+      <View style={styles.flexOne}>
+        <Text style={styles.mediaAttachmentTitle}>Video attached</Text>
+        <Text style={styles.mediaAttachmentName}>{attachment.name ?? 'Open video'}</Text>
+      </View>
+      <Ionicons name="expand-outline" size={18} color="#8b95a1" />
+    </Pressable>
+  );
+}
+
+function MediaViewer({ attachment, onClose }: { attachment: Attachment | null; onClose: () => void }) {
+  return (
+    <Modal visible={!!attachment} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={styles.mediaViewerBackdrop}>
+        <View style={styles.mediaViewerHeader}>
+          <Text style={styles.mediaViewerTitle}>{attachment?.type === 'video' ? 'Video' : 'Photo'}</Text>
+          <Pressable style={styles.mediaViewerClose} onPress={onClose}>
+            <Ionicons name="close" size={24} color="#ffffff" />
+          </Pressable>
+        </View>
+        <View style={styles.mediaViewerBody}>
+          {attachment?.type === 'image' && (
+            <Image source={{ uri: attachment.uri }} style={styles.mediaViewerImage} resizeMode="contain" />
+          )}
+          {attachment?.type === 'video' && <FullscreenVideo uri={attachment.uri} />}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function FullscreenVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.mediaViewerVideo}
+      contentFit="contain"
+      nativeControls
+      allowsPictureInPicture
+    />
   );
 }
 
@@ -2136,11 +2209,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   myMessage: {
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
     backgroundColor: '#d9f4ee',
   },
   theirMessage: {
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
@@ -2161,10 +2234,67 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
   },
-  attachmentText: {
-    color: '#285f8f',
-    fontWeight: '700',
+  mediaAttachmentButton: {
+    minHeight: 56,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 10,
     marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ffffff',
+  },
+  mediaAttachmentTitle: {
+    color: '#17221d',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  mediaAttachmentName: {
+    color: '#687076',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  mediaViewerBackdrop: {
+    flex: 1,
+    backgroundColor: '#050708',
+  },
+  mediaViewerHeader: {
+    minHeight: 64,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  mediaViewerTitle: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  mediaViewerClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  mediaViewerBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  mediaViewerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaViewerVideo: {
+    width: '100%',
+    height: '72%',
+    backgroundColor: '#000000',
   },
   composer: {
     flexDirection: 'row',
