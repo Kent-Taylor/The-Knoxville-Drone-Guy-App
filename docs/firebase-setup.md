@@ -43,7 +43,7 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
 - `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
-- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, videoEditFormat, videoEditOther, finishedVideoLength, finishedVideoLengthOther, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
 
 ## Shoot Request Intake
 
@@ -51,7 +51,7 @@ Clients create requests from the app after signing in. The app requires name or 
 
 Address autocomplete is currently a local Knoxville placeholder list. If no suggestion matches, the app accepts the typed address. Production address validation should use a maps/geocoding provider before mileage pricing is finalized.
 
-Recurring shoots store `isRecurring`, `recurrenceFrequency`, optional `recurrenceOther`, and `recurrenceEndDate`. The `Other` service stores its required description in `otherDescription`.
+Recurring shoots store `isRecurring`, `recurrenceFrequency`, optional `recurrenceOther`, and `recurrenceEndDate`. The `Other` service stores its required description in `otherDescription`. If `Edit Into a Video` is selected, optional video-edit fields store the requested format and final video length.
 
 ## Location Rules
 

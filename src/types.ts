@@ -90,6 +90,14 @@ export type ShootService =
 
 export type ShootRequestStatus = 'requested' | 'accepted' | 'needs_details';
 export type RecurrenceFrequency = 'weekly' | 'monthly' | 'quarterly' | 'bi_annually' | 'yearly' | 'other';
+export type VideoEditFormat = 'social_media_reel' | 'long_format' | 'other';
+export type FinishedVideoLength =
+  | '15_30_seconds'
+  | '30_60_seconds'
+  | '2_3_minutes'
+  | '4_6_minutes'
+  | '8_10_minutes'
+  | 'other';
 
 export type ShootRequest = {
   id: string;
@@ -107,6 +115,10 @@ export type ShootRequest = {
   routeDistanceUpdatedAt?: number;
   services: ShootService[];
   otherDescription?: string;
+  videoEditFormat?: VideoEditFormat;
+  videoEditOther?: string;
+  finishedVideoLength?: FinishedVideoLength;
+  finishedVideoLengthOther?: string;
   details: string;
   isRecurring: boolean;
   recurrenceFrequency?: RecurrenceFrequency;
@@ -160,5 +172,20 @@ export const recurrenceFrequencies: { value: RecurrenceFrequency; label: string 
   { value: 'quarterly', label: 'Quarterly' },
   { value: 'bi_annually', label: 'Bi Annually' },
   { value: 'yearly', label: 'Yearly' },
+  { value: 'other', label: 'Other' },
+];
+
+export const videoEditFormats: { value: VideoEditFormat; label: string }[] = [
+  { value: 'social_media_reel', label: 'Social Media Reel' },
+  { value: 'long_format', label: 'Long Format' },
+  { value: 'other', label: 'Other' },
+];
+
+export const finishedVideoLengths: { value: FinishedVideoLength; label: string }[] = [
+  { value: '15_30_seconds', label: '15-30 seconds' },
+  { value: '30_60_seconds', label: '30-60 seconds' },
+  { value: '2_3_minutes', label: '2-3 Minutes' },
+  { value: '4_6_minutes', label: '4-6 minutes' },
+  { value: '8_10_minutes', label: '8-10 minutes' },
   { value: 'other', label: 'Other' },
 ];

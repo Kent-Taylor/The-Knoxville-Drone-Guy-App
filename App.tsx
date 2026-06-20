@@ -50,13 +50,17 @@ import {
   Job,
   JobStatus,
   JobUpdate,
+  FinishedVideoLength,
   RecurrenceFrequency,
   ShootRequest,
   ShootService,
+  VideoEditFormat,
+  finishedVideoLengths,
   jobStatuses,
   locationVisibleStatuses,
   recurrenceFrequencies,
   shootServices,
+  videoEditFormats,
 } from './src/types';
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
@@ -902,6 +906,9 @@ function JobsScreen({
                 <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
                 <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
                 <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                {!!request.videoEditFormat && (
+                  <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
+                )}
                 {request.isRecurring && (
                   <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
                 )}
@@ -1085,6 +1092,13 @@ function ShootRequestForm({
   const [showRecurrenceEndPicker, setShowRecurrenceEndPicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSentBanner, setShowSentBanner] = useState(false);
+  const [videoEditFormat, setVideoEditFormat] = useState<VideoEditFormat | null>(null);
+  const [showVideoEditFormatPicker, setShowVideoEditFormatPicker] = useState(false);
+  const [videoEditOther, setVideoEditOther] = useState('');
+  const [finishedVideoLength, setFinishedVideoLength] = useState<FinishedVideoLength | null>(null);
+  const [showFinishedVideoLengthPicker, setShowFinishedVideoLengthPicker] = useState(false);
+  const [finishedVideoLengthOther, setFinishedVideoLengthOther] = useState('');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const filteredAddresses = useMemo(() => {
     const needle = projectAddress.trim().toLowerCase();
@@ -1095,31 +1109,64 @@ function ShootRequestForm({
   }, [projectAddress]);
 
   const toggleService = (service: ShootService) => {
-    setServices((current) =>
-      current.includes(service) ? current.filter((item) => item !== service) : [...current, service],
-    );
+    setServices((current) => {
+      const nextServices = current.includes(service) ? current.filter((item) => item !== service) : [...current, service];
+      if (service === 'edit_into_video' && current.includes(service)) {
+        setVideoEditFormat(null);
+        setVideoEditOther('');
+        setFinishedVideoLength(null);
+        setFinishedVideoLengthOther('');
+        setShowVideoEditFormatPicker(false);
+        setShowFinishedVideoLengthPicker(false);
+        setValidationErrors((errors) =>
+          errors.filter(
+            (item) =>
+              !['videoEditFormat', 'videoEditOther', 'finishedVideoLength', 'finishedVideoLengthOther'].includes(item),
+          ),
+        );
+      }
+      if (service === 'other' && current.includes(service)) {
+        setOtherDescription('');
+        setValidationErrors((errors) => errors.filter((item) => item !== 'otherDescription'));
+      }
+      return nextServices;
+    });
+    setValidationErrors((current) => current.filter((item) => item !== 'services'));
   };
 
   const submit = async () => {
     if (submitting) return;
     const selectedOther = services.includes('other');
-    const missingRequired =
-      !requesterName.trim() ||
-      !title.trim() ||
-      !requestedDate ||
-      !projectAddress.trim() ||
-      !details.trim() ||
-      services.length === 0 ||
-      (selectedOther && !otherDescription.trim()) ||
-      (isRecurring && (!recurrenceEndDate || !recurrenceFrequency)) ||
-      (isRecurring && recurrenceFrequency === 'other' && !recurrenceOther.trim());
+    const selectedVideoEdit = services.includes('edit_into_video');
+    const requiresFinishedVideoLength = selectedVideoEdit && (videoEditFormat === 'long_format' || videoEditFormat === 'other');
+    const errors = [
+      ...(!requesterName.trim() ? ['requesterName'] : []),
+      ...(!title.trim() ? ['title'] : []),
+      ...(!requestedDate ? ['requestedDate'] : []),
+      ...(!projectAddress.trim() ? ['projectAddress'] : []),
+      ...(!details.trim() ? ['details'] : []),
+      ...(services.length === 0 ? ['services'] : []),
+      ...(selectedOther && !otherDescription.trim() ? ['otherDescription'] : []),
+      ...(selectedVideoEdit && !videoEditFormat ? ['videoEditFormat'] : []),
+      ...(selectedVideoEdit && videoEditFormat === 'other' && !videoEditOther.trim() ? ['videoEditOther'] : []),
+      ...(requiresFinishedVideoLength && !finishedVideoLength ? ['finishedVideoLength'] : []),
+      ...(requiresFinishedVideoLength && finishedVideoLength === 'other' && !finishedVideoLengthOther.trim()
+        ? ['finishedVideoLengthOther']
+        : []),
+      ...(isRecurring && !recurrenceFrequency ? ['recurrenceFrequency'] : []),
+      ...(isRecurring && !recurrenceEndDate ? ['recurrenceEndDate'] : []),
+      ...(isRecurring && recurrenceFrequency === 'other' && !recurrenceOther.trim() ? ['recurrenceOther'] : []),
+    ];
 
-    if (missingRequired) {
-      Alert.alert('More details needed', 'Fill out every field and select at least one shoot option.');
+    setValidationErrors(errors);
+    if (errors.length > 0) {
       return;
     }
 
-    if (requestedDate < tomorrow) {
+    const confirmedRequestedDate = requestedDate;
+    if (!confirmedRequestedDate) return;
+
+    if (confirmedRequestedDate < tomorrow) {
       Alert.alert('Choose another date', 'Same-day project requests are disabled.');
       return;
     }
@@ -1130,11 +1177,16 @@ function ShootRequestForm({
       await onSubmit({
         requesterName: requesterName.trim(),
         title: title.trim(),
-        requestedWhen: formatProjectDate(requestedDate),
-        requestedDate: requestedDate.toISOString(),
+        requestedWhen: formatProjectDate(confirmedRequestedDate),
+        requestedDate: confirmedRequestedDate.toISOString(),
         projectAddress: projectAddress.trim(),
         services,
         otherDescription: selectedOther ? otherDescription.trim() : undefined,
+        videoEditFormat: selectedVideoEdit ? videoEditFormat ?? undefined : undefined,
+        videoEditOther: selectedVideoEdit && videoEditFormat === 'other' ? videoEditOther.trim() : undefined,
+        finishedVideoLength: requiresFinishedVideoLength ? finishedVideoLength ?? undefined : undefined,
+        finishedVideoLengthOther:
+          requiresFinishedVideoLength && finishedVideoLength === 'other' ? finishedVideoLengthOther.trim() : undefined,
         details: details.trim(),
         isRecurring,
         recurrenceFrequency: isRecurring ? recurrenceFrequency ?? undefined : undefined,
@@ -1152,24 +1204,52 @@ function ShootRequestForm({
       setRecurrenceFrequency(null);
       setRecurrenceOther('');
       setRecurrenceEndDate(null);
+      setVideoEditFormat(null);
+      setVideoEditOther('');
+      setFinishedVideoLength(null);
+      setFinishedVideoLengthOther('');
+      setValidationErrors([]);
       setShowSentBanner(true);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const hasError = (field: string) => validationErrors.includes(field);
+  const clearValidationError = (field: string) => {
+    setValidationErrors((current) => current.filter((item) => item !== field));
+  };
+  const selectedVideoEdit = services.includes('edit_into_video');
+  const requiresFinishedVideoLength = selectedVideoEdit && (videoEditFormat === 'long_format' || videoEditFormat === 'other');
+
   return (
     <View style={styles.shootRequestCard}>
       <Text style={styles.formTitle}>Request a Project Shoot</Text>
       <IconTextInput
+        error={hasError('requesterName')}
         icon="person-outline"
         placeholder="Your name or business name"
         value={requesterName}
-        onChangeText={setRequesterName}
+        onChangeText={(value) => {
+          setRequesterName(value);
+          clearValidationError('requesterName');
+        }}
         textContentType="organizationName"
       />
-      <IconTextInput icon="document-outline" placeholder="Project name" value={title} onChangeText={setTitle} />
-      <Pressable style={styles.formSelectRow} onPress={() => setShowDatePicker((current) => !current)}>
+      <IconTextInput
+        error={hasError('title')}
+        icon="document-outline"
+        placeholder="Project name"
+        value={title}
+        onChangeText={(value) => {
+          setTitle(value);
+          clearValidationError('title');
+        }}
+      />
+      <Pressable
+        style={[styles.formSelectRow, hasError('requestedDate') && styles.validationErrorBorder]}
+        onPress={() => setShowDatePicker((current) => !current)}
+      >
         <Ionicons name="calendar-outline" size={22} color="#8b95a1" />
         <Text style={[styles.formSelectText, !requestedDate && styles.formPlaceholderText]}>
           {requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
@@ -1184,15 +1264,22 @@ function ShootRequestForm({
           minimumDate={tomorrow}
           onChange={(_, date) => {
             if (Platform.OS !== 'ios') setShowDatePicker(false);
-            if (date) setRequestedDate(date < tomorrow ? tomorrow : date);
+            if (date) {
+              setRequestedDate(date < tomorrow ? tomorrow : date);
+              clearValidationError('requestedDate');
+            }
           }}
         />
       )}
       <IconTextInput
+        error={hasError('projectAddress')}
         icon="location-outline"
         placeholder="Project address"
         value={projectAddress}
-        onChangeText={setProjectAddress}
+        onChangeText={(value) => {
+          setProjectAddress(value);
+          clearValidationError('projectAddress');
+        }}
         textContentType="fullStreetAddress"
       />
       {filteredAddresses.length > 0 && (
@@ -1206,7 +1293,7 @@ function ShootRequestForm({
         </View>
       )}
       <Text style={styles.formLabel}>Project Scope</Text>
-      <View style={styles.serviceGrid}>
+      <View style={[styles.serviceGrid, hasError('services') && styles.validationErrorGroup]}>
         {shootServices.map((service) => {
           const active = services.includes(service.value);
           return (
@@ -1221,23 +1308,130 @@ function ShootRequestForm({
           );
         })}
       </View>
+      {selectedVideoEdit && (
+        <View style={styles.conditionalPanel}>
+          <Text style={styles.formLabel}>Video Type</Text>
+          <Pressable
+            style={[styles.formSelectRow, hasError('videoEditFormat') && styles.validationErrorBorder]}
+            onPress={() => setShowVideoEditFormatPicker((current) => !current)}
+          >
+            <Ionicons name="film-outline" size={22} color="#8b95a1" />
+            <Text style={[styles.formSelectText, !videoEditFormat && styles.formPlaceholderText]}>
+              {formatVideoEditFormat(videoEditFormat)}
+            </Text>
+            <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+          </Pressable>
+          {showVideoEditFormatPicker && (
+            <View style={styles.selectOptionList}>
+              {videoEditFormats.map((format) => (
+                <Pressable
+                  key={format.value}
+                  style={styles.selectOptionRow}
+                  onPress={() => {
+                    setVideoEditFormat(format.value);
+                    setShowVideoEditFormatPicker(false);
+                    setFinishedVideoLength(null);
+                    setFinishedVideoLengthOther('');
+                    clearValidationError('videoEditFormat');
+                    clearValidationError('videoEditOther');
+                    clearValidationError('finishedVideoLength');
+                    clearValidationError('finishedVideoLengthOther');
+                  }}
+                >
+                  <Text style={styles.selectOptionText}>{format.label}</Text>
+                  {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {videoEditFormat === 'other' && (
+            <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('videoEditOther') && styles.validationErrorBorder]}>
+              <Ionicons name="create-outline" size={22} color="#8b95a1" />
+              <TextInput
+                style={[styles.formTextInput, styles.formTextArea]}
+                placeholder="Describe the video type"
+                placeholderTextColor="#a4abb4"
+                value={videoEditOther}
+                onChangeText={(value) => {
+                  setVideoEditOther(value);
+                  clearValidationError('videoEditOther');
+                }}
+                multiline
+              />
+            </View>
+          )}
+          {requiresFinishedVideoLength && (
+            <>
+              <Text style={styles.formLabel}>Length of Finished Video</Text>
+              <Pressable
+                style={[styles.formSelectRow, hasError('finishedVideoLength') && styles.validationErrorBorder]}
+                onPress={() => setShowFinishedVideoLengthPicker((current) => !current)}
+              >
+                <Ionicons name="time-outline" size={22} color="#8b95a1" />
+                <Text style={[styles.formSelectText, !finishedVideoLength && styles.formPlaceholderText]}>
+                  {formatFinishedVideoLength(finishedVideoLength)}
+                </Text>
+                <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+              </Pressable>
+              {showFinishedVideoLengthPicker && (
+                <View style={styles.selectOptionList}>
+                  {finishedVideoLengths.map((length) => (
+                    <Pressable
+                      key={length.value}
+                      style={styles.selectOptionRow}
+                      onPress={() => {
+                        setFinishedVideoLength(length.value);
+                        setShowFinishedVideoLengthPicker(false);
+                        setFinishedVideoLengthOther('');
+                        clearValidationError('finishedVideoLength');
+                        clearValidationError('finishedVideoLengthOther');
+                      }}
+                    >
+                      <Text style={styles.selectOptionText}>{length.label}</Text>
+                      {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {finishedVideoLength === 'other' && (
+                <IconTextInput
+                  error={hasError('finishedVideoLengthOther')}
+                  icon="create-outline"
+                  placeholder="Enter finished video length"
+                  value={finishedVideoLengthOther}
+                  onChangeText={(value) => {
+                    setFinishedVideoLengthOther(value);
+                    clearValidationError('finishedVideoLengthOther');
+                  }}
+                />
+              )}
+            </>
+          )}
+        </View>
+      )}
       {services.includes('other') && (
         <TextInput
-          style={[styles.input, styles.noteInput, styles.modernTextArea]}
+          style={[styles.input, styles.noteInput, styles.modernTextArea, hasError('otherDescription') && styles.validationErrorBorder]}
           placeholder="Describe the project"
           value={otherDescription}
-          onChangeText={setOtherDescription}
+          onChangeText={(value) => {
+            setOtherDescription(value);
+            clearValidationError('otherDescription');
+          }}
           multiline
         />
       )}
-      <View style={[styles.formInputRow, styles.formTextAreaRow]}>
+      <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('details') && styles.validationErrorBorder]}>
         <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
         <TextInput
           style={[styles.formTextInput, styles.formTextArea]}
           placeholder="Describe the project the best you can"
           placeholderTextColor="#a4abb4"
           value={details}
-          onChangeText={setDetails}
+          onChangeText={(value) => {
+            setDetails(value);
+            clearValidationError('details');
+          }}
           multiline
         />
       </View>
@@ -1249,6 +1443,9 @@ function ShootRequestForm({
             setRecurrenceFrequency(null);
             setRecurrenceOther('');
             setRecurrenceEndDate(null);
+            setValidationErrors((errors) =>
+              errors.filter((item) => !['recurrenceFrequency', 'recurrenceOther', 'recurrenceEndDate'].includes(item)),
+            );
           }
         }}
       >
@@ -1261,14 +1458,18 @@ function ShootRequestForm({
       {isRecurring && (
         <View style={styles.recurringBox}>
           <Text style={styles.formLabel}>Frequency</Text>
-          <View style={styles.serviceGrid}>
+          <View style={[styles.serviceGrid, hasError('recurrenceFrequency') && styles.validationErrorGroup]}>
             {recurrenceFrequencies.map((frequency) => {
               const active = recurrenceFrequency === frequency.value;
               return (
                 <Pressable
                   key={frequency.value}
                   style={[styles.serviceButton, active && styles.activeServiceButton]}
-                  onPress={() => setRecurrenceFrequency(frequency.value)}
+                  onPress={() => {
+                    setRecurrenceFrequency(frequency.value);
+                    clearValidationError('recurrenceFrequency');
+                    clearValidationError('recurrenceOther');
+                  }}
                 >
                   <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>
                     {frequency.label}
@@ -1279,13 +1480,20 @@ function ShootRequestForm({
           </View>
           {recurrenceFrequency === 'other' && (
             <IconTextInput
+              error={hasError('recurrenceOther')}
               icon="repeat-outline"
               placeholder="Custom recurrence"
               value={recurrenceOther}
-              onChangeText={setRecurrenceOther}
+              onChangeText={(value) => {
+                setRecurrenceOther(value);
+                clearValidationError('recurrenceOther');
+              }}
             />
           )}
-          <Pressable style={styles.formSelectRow} onPress={() => setShowRecurrenceEndPicker((current) => !current)}>
+          <Pressable
+            style={[styles.formSelectRow, hasError('recurrenceEndDate') && styles.validationErrorBorder]}
+            onPress={() => setShowRecurrenceEndPicker((current) => !current)}
+          >
             <Ionicons name="calendar-clear-outline" size={22} color="#8b95a1" />
             <Text style={[styles.formSelectText, !recurrenceEndDate && styles.formPlaceholderText]}>
               {recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
@@ -1300,7 +1508,10 @@ function ShootRequestForm({
               minimumDate={requestedDate ?? tomorrow}
               onChange={(_, date) => {
                 if (Platform.OS !== 'ios') setShowRecurrenceEndPicker(false);
-                if (date) setRecurrenceEndDate(date);
+                if (date) {
+                  setRecurrenceEndDate(date);
+                  clearValidationError('recurrenceEndDate');
+                }
               }}
             />
           )}
@@ -1802,6 +2013,7 @@ function PrimaryButton({
 }
 
 function IconTextInput({
+  error,
   icon,
   multiline,
   onChangeText,
@@ -1809,6 +2021,7 @@ function IconTextInput({
   textContentType,
   value,
 }: {
+  error?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
   multiline?: boolean;
   onChangeText: (value: string) => void;
@@ -1817,7 +2030,7 @@ function IconTextInput({
   value: string;
 }) {
   return (
-    <View style={[styles.formInputRow, multiline && styles.formTextAreaRow]}>
+    <View style={[styles.formInputRow, multiline && styles.formTextAreaRow, error && styles.validationErrorBorder]}>
       <Ionicons name={icon} size={22} color="#8b95a1" />
       <TextInput
         style={[styles.formTextInput, multiline && styles.formTextArea]}
@@ -1904,6 +2117,30 @@ function formatServices(services: ShootService[]) {
   return services
     .map((service) => shootServices.find((item) => item.value === service)?.label ?? service)
     .join(', ');
+}
+
+function formatVideoEditFormat(format?: VideoEditFormat | null) {
+  if (!format) return 'Select Video Type';
+  return videoEditFormats.find((item) => item.value === format)?.label ?? format;
+}
+
+function formatFinishedVideoLength(length?: FinishedVideoLength | null) {
+  if (!length) return 'Select Finished Video Length';
+  return finishedVideoLengths.find((item) => item.value === length)?.label ?? length;
+}
+
+function formatVideoEditDetails(request: ShootRequest) {
+  const format =
+    request.videoEditFormat === 'other'
+      ? request.videoEditOther
+      : formatVideoEditFormat(request.videoEditFormat);
+  const length =
+    request.finishedVideoLength === 'other'
+      ? request.finishedVideoLengthOther
+      : request.finishedVideoLength
+        ? formatFinishedVideoLength(request.finishedVideoLength)
+        : null;
+  return length ? `${format} - ${length}` : format;
 }
 
 function serviceIcon(service: ShootService): keyof typeof Ionicons.glyphMap {
@@ -2560,6 +2797,45 @@ const styles = StyleSheet.create({
   formPlaceholderText: {
     color: '#a4abb4',
     fontWeight: '500',
+  },
+  conditionalPanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e8e8',
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#f7fbfb',
+  },
+  selectOptionList: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e5e8',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  selectOptionRow: {
+    minHeight: 46,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e1e5e8',
+  },
+  selectOptionText: {
+    color: '#17221d',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  validationErrorBorder: {
+    borderColor: '#dc2626',
+    borderWidth: 1.5,
+  },
+  validationErrorGroup: {
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#dc2626',
+    padding: 8,
   },
   requestCard: {
     borderRadius: 8,
