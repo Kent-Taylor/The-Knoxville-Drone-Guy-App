@@ -147,7 +147,7 @@ export const jobStatuses: { value: JobStatus; label: string }[] = [
   { value: 'shoot_complete', label: 'Shoot Complete' },
   { value: 'editing_media', label: 'Editing Media' },
   { value: 'media_delivered', label: 'Media Delivered' },
-  { value: 'job_complete', label: 'Job Complete' },
+  { value: 'job_complete', label: 'Job Completed' },
 ];
 
 export const locationVisibleStatuses: JobStatus[] = [

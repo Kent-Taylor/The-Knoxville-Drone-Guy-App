@@ -957,6 +957,8 @@ function JobsScreen({
     );
   }
 
+  const activeJobs = jobs.filter((job) => job.status !== 'job_complete');
+  const historyJobs = jobs.filter((job) => job.status === 'job_complete');
   const showMap = selectedJob.liveLocation && locationVisibleStatuses.includes(selectedJob.status);
 
   const addMediaUpdate = async () => {
@@ -1029,10 +1031,45 @@ function JobsScreen({
       )}
       <View style={styles.jobsList}>
         <Text style={styles.smallTitle}>Projects</Text>
-        {jobs.map((job) => (
+        {activeJobs.length === 0 ? (
+          <Text style={styles.muted}>No active projects right now.</Text>
+        ) : (
+          activeJobs.map((job) => (
+            <Pressable
+              key={job.id}
+              style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
+              onPress={() => setSelectedJobId(job.id)}
+            >
+              <View style={styles.flexOne}>
+                <Text style={styles.jobListTitle}>{job.title}</Text>
+                <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+              </View>
+              <View style={styles.statusPillSmall}>
+                <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+              </View>
+              <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+            </Pressable>
+          ))
+        )}
+        <View style={styles.historyHeader}>
+          <View>
+            <Text style={styles.historyTitle}>History</Text>
+            <Text style={styles.historySubtitle}>Completed projects are saved here.</Text>
+          </View>
+          <View style={styles.historyCountPill}>
+            <Text style={styles.historyCountText}>{historyJobs.length}</Text>
+          </View>
+        </View>
+        {historyJobs.length === 0 ? (
+          <View style={styles.historyEmpty}>
+            <Ionicons name="archive-outline" size={18} color="#687076" />
+            <Text style={styles.muted}>Projects marked Job Completed will appear here.</Text>
+          </View>
+        ) : (
+          historyJobs.map((job) => (
           <Pressable
             key={job.id}
-            style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
+            style={[styles.jobListItem, styles.historyJobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
             onPress={() => setSelectedJobId(job.id)}
           >
             <View style={styles.flexOne}>
@@ -1044,7 +1081,8 @@ function JobsScreen({
             </View>
             <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
           </Pressable>
-        ))}
+          ))
+        )}
       </View>
       <View style={styles.jobHero}>
         <Text style={styles.sectionTitle}>{selectedJob.title}</Text>
@@ -2926,6 +2964,54 @@ const styles = StyleSheet.create({
   activeJobListItem: {
     borderColor: '#0f766e',
     backgroundColor: '#e3f5f1',
+  },
+  historyHeader: {
+    minHeight: 58,
+    borderTopWidth: 1,
+    borderTopColor: '#e6ece8',
+    paddingTop: 14,
+    marginTop: 6,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  historyTitle: {
+    color: '#17221d',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  historySubtitle: {
+    color: '#687076',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  historyCountPill: {
+    minWidth: 30,
+    height: 28,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f5f2',
+  },
+  historyCountText: {
+    color: '#0f766e',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  historyEmpty: {
+    minHeight: 50,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f7fbfb',
+  },
+  historyJobListItem: {
+    backgroundColor: '#fbfcfc',
   },
   jobListTitle: {
     color: '#17221d',
