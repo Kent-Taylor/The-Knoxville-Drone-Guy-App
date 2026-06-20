@@ -292,7 +292,14 @@ export default function App() {
     );
 
     return onSnapshot(updatesQuery, (snapshot) => {
-      const updates = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as JobUpdate);
+      const updates = snapshot.docs.map((item) => {
+        const data = item.data() as JobUpdate;
+        return {
+          ...data,
+          id: data.id ?? item.id,
+          firestoreId: item.id,
+        };
+      });
       setData((current) => ({
         ...current,
         jobs: current.jobs.map((job) => (job.id === selectedJob.id ? { ...job, updates } : job)),
@@ -412,7 +419,7 @@ export default function App() {
         status,
         liveLocation: liveLocation ?? null,
       });
-      await addDoc(collection(db, 'jobs', job.id, 'updates'), update);
+      await setDoc(doc(db, 'jobs', job.id, 'updates', update.id), update);
     }
     setData((current) => ({
       ...current,
@@ -453,7 +460,9 @@ export default function App() {
     const currentStatus = editedUpdates[0]?.status ?? job.status;
 
     if (isFirebaseConfigured && db) {
-      await updateDoc(doc(db, 'jobs', job.id, 'updates', updateId), changes);
+      const targetUpdate = job.updates.find((update) => update.id === updateId);
+      const updateDocId = targetUpdate?.firestoreId ?? updateId;
+      await updateDoc(doc(db, 'jobs', job.id, 'updates', updateDocId), changes);
       await updateDoc(doc(db, 'jobs', job.id), { status: currentStatus });
     }
 
@@ -525,7 +534,7 @@ export default function App() {
     if (isFirebaseConfigured && db) {
       await updateDoc(doc(db, 'shootRequests', request.id), { status: 'accepted' });
       await setDoc(doc(db, 'jobs', acceptedJob.id), { ...acceptedJob, updates: [] });
-      await addDoc(collection(db, 'jobs', acceptedJob.id, 'updates'), acceptedJob.updates[0]);
+      await setDoc(doc(db, 'jobs', acceptedJob.id, 'updates', acceptedJob.updates[0].id), acceptedJob.updates[0]);
     }
     setData((current) => ({
       ...current,
@@ -836,8 +845,21 @@ function JobsScreen({
       quality: 0.8,
     });
     if (!result.canceled) {
-      onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', assetToAttachment(result.assets[0]));
-      setNote('');
+      const attachment = assetToAttachment(result.assets[0]);
+      Alert.alert(
+        'Post media update?',
+        `Add this ${attachment.type} to the job progress updates?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Post',
+            onPress: () => {
+              onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', attachment);
+              setNote('');
+            },
+          },
+        ],
+      );
     }
   };
 

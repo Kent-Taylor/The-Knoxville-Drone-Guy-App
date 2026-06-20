@@ -43,6 +43,7 @@ export type ChatThread = {
 
 export type JobUpdate = {
   id: string;
+  firestoreId?: string;
   jobId: string;
   status: JobStatus;
   note: string;
