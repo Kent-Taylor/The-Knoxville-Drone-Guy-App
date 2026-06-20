@@ -45,5 +45,11 @@ service cloud.firestore {
         allow read, write: if isAdmin();
       }
     }
+
+    match /shootRequests/{requestId} {
+      allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.clientId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
   }
 }

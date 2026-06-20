@@ -7,7 +7,7 @@ This app runs in demo mode until Firebase values are added.
 Enable these Firebase services:
 
 - Authentication: email/password or email-link sign-in for invited clients.
-- Firestore: users, chat threads, messages, jobs, updates, and live location.
+- Firestore: users, chat threads, messages, jobs, updates, shoot requests, and live location.
 - Storage: chat attachments and job media updates.
 - Cloud Functions: invites, admin-only writes, push notification fanout, and location cleanup.
 - Cloud Messaging: iOS push notifications through APNs.
@@ -43,10 +43,11 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
 - `jobs/{jobId}`: clientId, clientName, title, address, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, title, requestedWhen, location, services, details, status, createdAt.
 
 ## Location Rules
 
-Only the admin app writes live location. It starts at `on_my_way`, remains visible through `arrived`, `shoot_started`, and `shoot_complete`, and is removed at `job_complete`.
+Only the admin app writes live location. It starts at `on_my_way`, remains visible through `arrived` and `shoot_started`, and is removed at `shoot_complete` or `job_complete`.
 
 Do not store route history for v1. Store only the latest point and timestamp.
 

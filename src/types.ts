@@ -68,27 +68,59 @@ export type Job = {
   liveLocation?: LiveLocation;
 };
 
+export type ShootService =
+  | 'drone_video'
+  | 'drone_photo'
+  | 'ground_video'
+  | 'ground_photo'
+  | 'actors'
+  | 'other';
+
+export type ShootRequestStatus = 'requested' | 'accepted' | 'needs_details';
+
+export type ShootRequest = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  title: string;
+  requestedWhen: string;
+  location: string;
+  services: ShootService[];
+  details: string;
+  status: ShootRequestStatus;
+  createdAt: number;
+};
+
 export type AppData = {
   user: AppUser | null;
   threads: ChatThread[];
   messages: ChatMessage[];
   jobs: Job[];
+  shootRequests: ShootRequest[];
 };
 
 export const jobStatuses: { value: JobStatus; label: string }[] = [
   { value: 'scheduled', label: 'Scheduled' },
-  { value: 'on_my_way', label: 'On my way' },
+  { value: 'on_my_way', label: 'On My Way' },
   { value: 'arrived', label: 'Arrived' },
-  { value: 'shoot_started', label: 'Shoot started' },
-  { value: 'shoot_complete', label: 'Shoot complete' },
-  { value: 'editing_media', label: 'Editing media' },
-  { value: 'media_delivered', label: 'Media delivered' },
-  { value: 'job_complete', label: 'Job complete' },
+  { value: 'shoot_started', label: 'Shoot Started' },
+  { value: 'shoot_complete', label: 'Shoot Complete' },
+  { value: 'editing_media', label: 'Editing Media' },
+  { value: 'media_delivered', label: 'Media Delivered' },
+  { value: 'job_complete', label: 'Job Complete' },
 ];
 
 export const locationVisibleStatuses: JobStatus[] = [
   'on_my_way',
   'arrived',
   'shoot_started',
-  'shoot_complete',
+];
+
+export const shootServices: { value: ShootService; label: string }[] = [
+  { value: 'drone_video', label: 'Drone Video' },
+  { value: 'drone_photo', label: 'Drone Photo' },
+  { value: 'ground_video', label: 'Ground Video' },
+  { value: 'ground_photo', label: 'Ground Photo' },
+  { value: 'actors', label: 'Actors' },
+  { value: 'other', label: 'Other' },
 ];

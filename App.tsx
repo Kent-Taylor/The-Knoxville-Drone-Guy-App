@@ -45,8 +45,11 @@ import {
   Job,
   JobStatus,
   JobUpdate,
+  ShootRequest,
+  ShootService,
   jobStatuses,
   locationVisibleStatuses,
+  shootServices,
 } from './src/types';
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
@@ -97,6 +100,38 @@ const demoJob: Job = {
   ],
 };
 
+const demoSecondJob: Job = {
+  id: 'job-demo-commercial-lot',
+  clientId: clientUser.uid,
+  clientName: clientUser.displayName,
+  title: 'Commercial property overview',
+  address: 'West Knoxville, TN',
+  status: 'editing_media',
+  scheduledAt: now + 1000 * 60 * 60 * 5,
+  updates: [
+    {
+      id: 'update-2',
+      jobId: 'job-demo-commercial-lot',
+      status: 'editing_media',
+      note: 'Shoot is complete and media editing is underway.',
+      createdAt: now - 1000 * 60 * 20,
+    },
+  ],
+};
+
+const demoShootRequest: ShootRequest = {
+  id: 'request-demo-1',
+  clientId: clientUser.uid,
+  clientName: clientUser.displayName,
+  title: 'Lake house listing shoot',
+  requestedWhen: 'Tomorrow afternoon',
+  location: 'Fort Loudoun Lake, Knoxville, TN',
+  services: ['drone_video', 'drone_photo', 'ground_photo'],
+  details: 'Need exterior aerials, a few ground photos, and a short vertical reel if weather cooperates.',
+  status: 'requested',
+  createdAt: now - 1000 * 60 * 7,
+};
+
 const initialData: AppData = {
   user: clientUser,
   threads: [demoThread],
@@ -110,7 +145,8 @@ const initialData: AppData = {
       createdAt: demoThread.updatedAt,
     },
   ],
-  jobs: [demoJob],
+  jobs: [demoJob, demoSecondJob],
+  shootRequests: [demoShootRequest],
 };
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'account';
@@ -145,6 +181,11 @@ export default function App() {
     return isAdmin ? data.jobs : data.jobs.filter((job) => job.clientId === user.uid);
   }, [data.jobs, isAdmin, user]);
 
+  const visibleShootRequests = useMemo(() => {
+    if (!user) return [];
+    return isAdmin ? data.shootRequests : data.shootRequests.filter((request) => request.clientId === user.uid);
+  }, [data.shootRequests, isAdmin, user]);
+
   const visibleThreads = useMemo(() => {
     if (!user) return [];
     return isAdmin
@@ -160,7 +201,7 @@ export default function App() {
     const firestore = db;
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        setData((current) => ({ ...current, user: null, threads: [], messages: [], jobs: [] }));
+        setData((current) => ({ ...current, user: null, threads: [], messages: [], jobs: [], shootRequests: [] }));
         return;
       }
 
@@ -258,6 +299,20 @@ export default function App() {
     });
   }, [user]);
 
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !user) return undefined;
+    const firestore = db;
+    const requestsQuery =
+      user.role === 'admin'
+        ? query(collection(firestore, 'shootRequests'), orderBy('createdAt', 'desc'))
+        : query(collection(firestore, 'shootRequests'), where('clientId', '==', user.uid), orderBy('createdAt', 'desc'));
+
+    return onSnapshot(requestsQuery, (snapshot) => {
+      const shootRequests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ShootRequest));
+      setData((current) => ({ ...current, shootRequests }));
+    });
+  }, [user]);
+
   const switchRole = (role: AppUser['role']) => {
     setData((current) => ({ ...current, user: role === 'admin' ? adminUser : clientUser }));
     setActiveTab('jobs');
@@ -305,7 +360,7 @@ export default function App() {
     if (status === 'on_my_way') {
       liveLocation = await getCurrentLocation(job.liveLocation);
     }
-    if (status === 'job_complete') {
+    if (status === 'shoot_complete' || status === 'job_complete') {
       liveLocation = undefined;
     }
     const update = {
@@ -339,6 +394,107 @@ export default function App() {
     scheduleLocalNotification('Job status updated', `${job.clientName} would be notified: ${statusLabel(status)}.`);
   };
 
+  const updateJobTitle = async (job: Job, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    if (isFirebaseConfigured && db) {
+      await updateDoc(doc(db, 'jobs', job.id), { title: trimmed });
+    }
+    setData((current) => ({
+      ...current,
+      jobs: current.jobs.map((item) => (item.id === job.id ? { ...item, title: trimmed } : item)),
+    }));
+  };
+
+  const submitShootRequest = async (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => {
+    if (!user) return;
+    const shootRequest: ShootRequest = {
+      ...request,
+      id: `request-${Date.now()}`,
+      clientId: user.uid,
+      clientName: user.displayName,
+      status: 'requested',
+      createdAt: Date.now(),
+    };
+    if (isFirebaseConfigured && db) {
+      await addDoc(collection(db, 'shootRequests'), shootRequest);
+    }
+    setData((current) => ({
+      ...current,
+      shootRequests: [shootRequest, ...current.shootRequests],
+    }));
+    scheduleLocalNotification('New shoot request', 'Admin would receive this new project request.');
+  };
+
+  const acceptShootRequest = async (request: ShootRequest) => {
+    const jobId = `job-${Date.now()}`;
+    const acceptedJob: Job = {
+      id: jobId,
+      clientId: request.clientId,
+      clientName: request.clientName,
+      title: request.title,
+      address: request.location,
+      status: 'scheduled',
+      scheduledAt: Date.now(),
+      updates: [
+        {
+          id: `update-${Date.now()}`,
+          jobId,
+          status: 'scheduled',
+          note: `Accepted shoot request for ${request.requestedWhen}.`,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+    if (isFirebaseConfigured && db) {
+      await updateDoc(doc(db, 'shootRequests', request.id), { status: 'accepted' });
+      await setDoc(doc(db, 'jobs', acceptedJob.id), { ...acceptedJob, updates: [] });
+      await addDoc(collection(db, 'jobs', acceptedJob.id, 'updates'), acceptedJob.updates[0]);
+    }
+    setData((current) => ({
+      ...current,
+      shootRequests: current.shootRequests.map((item) => (item.id === request.id ? { ...item, status: 'accepted' } : item)),
+      jobs: [acceptedJob, ...current.jobs],
+    }));
+    setSelectedJobId(acceptedJob.id);
+    scheduleLocalNotification('Shoot accepted', `${request.clientName} would be notified that the project was accepted.`);
+  };
+
+  const requestShootDetails = async (request: ShootRequest) => {
+    const messageText = `Thanks for the request for "${request.title}". Can you send a few more details or a better day and time?`;
+    if (isFirebaseConfigured && db) {
+      await updateDoc(doc(db, 'shootRequests', request.id), { status: 'needs_details' });
+    }
+    const existingThread = data.threads.find((thread) => thread.clientId === request.clientId);
+    if (existingThread) {
+      const message: ChatMessage = {
+        id: `message-${Date.now()}`,
+        threadId: existingThread.id,
+        senderId: adminUser.uid,
+        senderName: adminUser.displayName,
+        body: messageText,
+        createdAt: Date.now(),
+      };
+      if (isFirebaseConfigured && db) {
+        await addDoc(collection(db, 'chatThreads', existingThread.id, 'messages'), message);
+        await updateDoc(doc(db, 'chatThreads', existingThread.id), {
+          lastMessage: message.body,
+          updatedAt: message.createdAt,
+        });
+      }
+      setData((current) => ({
+        ...current,
+        shootRequests: current.shootRequests.map((item) => (item.id === request.id ? { ...item, status: 'needs_details' } : item)),
+        messages: [...current.messages, message],
+        threads: current.threads.map((thread) =>
+          thread.id === existingThread.id ? { ...thread, lastMessage: message.body, updatedAt: message.createdAt } : thread,
+        ),
+      }));
+      setSelectedThreadId(existingThread.id);
+      setActiveTab('chat');
+    }
+  };
+
   const renderContent = () => {
     if (!user) return <AccountScreen user={user} switchRole={switchRole} />;
     if (activeTab === 'website') return <WebsiteScreen />;
@@ -360,9 +516,15 @@ export default function App() {
         <JobsScreen
           isAdmin={isAdmin}
           jobs={visibleJobs}
+          onAcceptShootRequest={acceptShootRequest}
+          onRequestShootDetails={requestShootDetails}
+          onSubmitShootRequest={submitShootRequest}
           onUpdateStatus={updateJobStatus}
+          onUpdateTitle={updateJobTitle}
           selectedJob={selectedJob}
           setSelectedJobId={setSelectedJobId}
+          shootRequests={visibleShootRequests}
+          user={user}
         />
       );
     }
@@ -520,7 +682,7 @@ function ChatScreen({
           <Ionicons name="image-outline" size={22} color="#0f766e" />
         </Pressable>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.composerInput]}
           placeholder="Type a message"
           value={body}
           onChangeText={setBody}
@@ -544,20 +706,42 @@ function ChatScreen({
 function JobsScreen({
   isAdmin,
   jobs,
+  onAcceptShootRequest,
+  onRequestShootDetails,
+  onSubmitShootRequest,
   onUpdateStatus,
+  onUpdateTitle,
   selectedJob,
   setSelectedJobId,
+  shootRequests,
+  user,
 }: {
   isAdmin: boolean;
   jobs: Job[];
+  onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
+  onRequestShootDetails: (request: ShootRequest) => Promise<void>;
+  onSubmitShootRequest: (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => Promise<void>;
   onUpdateStatus: (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => Promise<void>;
+  onUpdateTitle: (job: Job, title: string) => Promise<void>;
   selectedJob?: Job;
   setSelectedJobId: (jobId: string) => void;
+  shootRequests: ShootRequest[];
+  user: AppUser;
 }) {
   const [note, setNote] = useState('');
+  const [draftTitle, setDraftTitle] = useState(selectedJob?.title ?? '');
+
+  useEffect(() => {
+    setDraftTitle(selectedJob?.title ?? '');
+  }, [selectedJob?.id, selectedJob?.title]);
 
   if (!selectedJob) {
-    return <EmptyState title="No jobs yet" body="Assigned jobs and progress updates will appear here." />;
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+        {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
+        <EmptyState title="No jobs yet" body="Assigned jobs and progress updates will appear here." />
+      </ScrollView>
+    );
   }
 
   const showMap = selectedJob.liveLocation && locationVisibleStatuses.includes(selectedJob.status);
@@ -580,11 +764,56 @@ function JobsScreen({
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selector}>
+      {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
+      {isAdmin && (
+        <View style={styles.adminPanel}>
+          <Text style={styles.smallTitle}>Project Shoot Requests</Text>
+          {shootRequests.length === 0 ? (
+            <Text style={styles.muted}>New client requests will appear here.</Text>
+          ) : (
+            shootRequests.map((request) => (
+              <View key={request.id} style={styles.requestCard}>
+                <View style={styles.requestHeader}>
+                  <View style={styles.flexOne}>
+                    <Text style={styles.requestTitle}>{request.title}</Text>
+                    <Text style={styles.muted}>{request.clientName}</Text>
+                  </View>
+                  <View style={styles.requestStatusPill}>
+                    <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
+                <Text style={styles.timelineText}>Where: {request.location}</Text>
+                <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                <View style={styles.rowActions}>
+                  <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
+                  <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+      <View style={styles.jobsList}>
+        <Text style={styles.smallTitle}>Jobs</Text>
         {jobs.map((job) => (
-          <Chip key={job.id} label={job.title} active={selectedJob.id === job.id} onPress={() => setSelectedJobId(job.id)} />
+          <Pressable
+            key={job.id}
+            style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
+            onPress={() => setSelectedJobId(job.id)}
+          >
+            <View style={styles.flexOne}>
+              <Text style={styles.jobListTitle}>{job.title}</Text>
+              <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+            </View>
+            <View style={styles.statusPillSmall}>
+              <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+            </View>
+            <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+          </Pressable>
         ))}
-      </ScrollView>
+      </View>
       <View style={styles.jobHero}>
         <Text style={styles.sectionTitle}>{selectedJob.title}</Text>
         <Text style={styles.muted}>{selectedJob.address}</Text>
@@ -631,6 +860,13 @@ function JobsScreen({
         <View style={styles.adminPanel}>
           <Text style={styles.smallTitle}>Admin job controls</Text>
           <TextInput
+            style={styles.input}
+            placeholder="Job name"
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            onBlur={() => onUpdateTitle(selectedJob, draftTitle)}
+          />
+          <TextInput
             style={[styles.input, styles.noteInput]}
             placeholder="Optional update note"
             value={note}
@@ -672,6 +908,78 @@ function JobsScreen({
         ))}
       </View>
     </ScrollView>
+  );
+}
+
+function ShootRequestForm({
+  onSubmit,
+  user,
+}: {
+  onSubmit: (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => Promise<void>;
+  user: AppUser;
+}) {
+  const [title, setTitle] = useState('');
+  const [requestedWhen, setRequestedWhen] = useState('');
+  const [location, setLocation] = useState('');
+  const [details, setDetails] = useState('');
+  const [services, setServices] = useState<ShootService[]>([]);
+
+  const toggleService = (service: ShootService) => {
+    setServices((current) =>
+      current.includes(service) ? current.filter((item) => item !== service) : [...current, service],
+    );
+  };
+
+  const submit = async () => {
+    if (!title.trim() || !requestedWhen.trim() || !location.trim() || services.length === 0) {
+      Alert.alert('More details needed', 'Add a project name, when, where, and at least one shoot type.');
+      return;
+    }
+    await onSubmit({
+      title: title.trim(),
+      requestedWhen: requestedWhen.trim(),
+      location: location.trim(),
+      services,
+      details: details.trim(),
+    });
+    setTitle('');
+    setRequestedWhen('');
+    setLocation('');
+    setDetails('');
+    setServices([]);
+    Alert.alert('Request sent', `${user.displayName}, your shoot request was sent.`);
+  };
+
+  return (
+    <View style={styles.adminPanel}>
+      <Text style={styles.smallTitle}>Request a Project Shoot</Text>
+      <TextInput style={styles.input} placeholder="Project name" value={title} onChangeText={setTitle} />
+      <TextInput style={styles.input} placeholder="When do you need it?" value={requestedWhen} onChangeText={setRequestedWhen} />
+      <TextInput style={styles.input} placeholder="Where is the shoot?" value={location} onChangeText={setLocation} />
+      <Text style={styles.formLabel}>Check all that apply</Text>
+      <View style={styles.statusGrid}>
+        {shootServices.map((service) => {
+          const active = services.includes(service.value);
+          return (
+            <Pressable
+              key={service.value}
+              style={[styles.statusButton, active && styles.activeStatusButton]}
+              onPress={() => toggleService(service.value)}
+            >
+              <Text style={[styles.statusButtonText, active && styles.activeStatusButtonText]}>{service.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <TextInput
+        style={[styles.input, styles.noteInput]}
+        placeholder="Anything else I should know?"
+        value={details}
+        onChangeText={setDetails}
+        multiline
+      />
+      <PrimaryButton label="Send Shoot Request" icon="send-outline" onPress={submit} />
+    </View>
   );
 }
 
@@ -763,6 +1071,15 @@ function PrimaryButton({ label, icon, onPress }: { label: string; icon: keyof ty
   );
 }
 
+function SecondaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  return (
+    <Pressable style={styles.secondaryButton} onPress={onPress}>
+      <Ionicons name={icon} size={17} color="#0f766e" />
+      <Text style={styles.secondaryButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.chip, active && styles.activeChip]} onPress={onPress}>
@@ -793,6 +1110,18 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 
 function statusLabel(status: JobStatus) {
   return jobStatuses.find((item) => item.value === status)?.label ?? status;
+}
+
+function formatServices(services: ShootService[]) {
+  return services
+    .map((service) => shootServices.find((item) => item.value === service)?.label ?? service)
+    .join(', ');
+}
+
+function requestStatusLabel(status: ShootRequest['status']) {
+  if (status === 'accepted') return 'Accepted';
+  if (status === 'needs_details') return 'Needs Details';
+  return 'Requested';
 }
 
 function assetToAttachment(asset: ImagePicker.ImagePickerAsset): Attachment {
@@ -1043,7 +1372,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e3f5f1',
   },
   input: {
-    flex: 1,
     minHeight: 40,
     maxHeight: 100,
     borderRadius: 8,
@@ -1053,6 +1381,9 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     backgroundColor: '#ffffff',
     color: '#17221d',
+  },
+  composerInput: {
+    flex: 1,
   },
   noteInput: {
     minHeight: 74,
@@ -1070,12 +1401,56 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   jobHero: {
-    margin: 14,
+    marginHorizontal: 14,
+    marginBottom: 14,
     padding: 14,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
+  },
+  jobsList: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#dce5df',
+  },
+  jobListItem: {
+    minHeight: 68,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff',
+  },
+  activeJobListItem: {
+    borderColor: '#0f766e',
+    backgroundColor: '#e3f5f1',
+  },
+  jobListTitle: {
+    color: '#17221d',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  statusPillSmall: {
+    maxWidth: 112,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#f0f5f2',
+  },
+  statusTextSmall: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   statusPill: {
     alignSelf: 'flex-start',
@@ -1128,6 +1503,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
+    gap: 10,
+  },
+  requestCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 12,
+    backgroundColor: '#fbfdfc',
+    gap: 4,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 4,
+  },
+  requestTitle: {
+    color: '#17221d',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  requestStatusPill: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#e3f5f1',
+  },
+  requestStatusText: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  rowActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  flexOne: {
+    flex: 1,
+  },
+  formLabel: {
+    color: '#405048',
+    fontSize: 13,
+    fontWeight: '800',
   },
   statusGrid: {
     flexDirection: 'row',
@@ -1226,6 +1645,22 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#ffffff',
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#0f766e',
+    backgroundColor: '#ffffff',
+  },
+  secondaryButtonText: {
+    color: '#0f766e',
     fontWeight: '800',
   },
   checkItem: {
