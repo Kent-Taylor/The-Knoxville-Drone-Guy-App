@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create: if isAdmin() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
+    }
+
+    match /chatThreads/{threadId} {
+      allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
+      allow create, update, delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || get(/databases/$(database)/documents/chatThreads/$(threadId)).data.clientId == request.auth.uid;
+        allow create: if isAdmin() || get(/databases/$(database)/documents/chatThreads/$(threadId)).data.clientId == request.auth.uid;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /jobs/{jobId} {
+      allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
+      allow create, update, delete: if isAdmin();
+
+      match /updates/{updateId} {
+        allow read: if isAdmin() || get(/databases/$(database)/documents/jobs/$(jobId)).data.clientId == request.auth.uid;
+        allow create, update, delete: if isAdmin();
+      }
+
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+      }
+    }
+  }
+}

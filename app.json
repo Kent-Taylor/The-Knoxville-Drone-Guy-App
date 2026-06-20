@@ -1,15 +1,29 @@
 {
   "expo": {
-    "name": "let-s-build-an-app-for",
-    "slug": "let-s-build-an-app-for",
+    "name": "The Knoxville Drone Guy",
+    "slug": "the-knoxville-drone-guy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.theknoxvilledroneguy.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "The Knoxville Drone Guy uses the camera so clients and admin can attach photos or videos in chat and job updates.",
+        "NSPhotoLibraryUsageDescription": "The Knoxville Drone Guy uses your photo library so you can select photos or videos for chat and job updates.",
+        "NSLocationWhenInUseUsageDescription": "The Knoxville Drone Guy shares the admin phone location only with the assigned client while an active job is in progress."
+      }
     },
     "android": {
+      "package": "com.theknoxvilledroneguy.app",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +34,30 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The Knoxville Drone Guy uses your photo library so you can select photos or videos for chat and job updates.",
+          "cameraPermission": "The Knoxville Drone Guy uses the camera so clients and admin can attach photos or videos in chat and job updates."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "The Knoxville Drone Guy shares the admin phone location only with the assigned client while an active job is in progress."
+        }
+      ]
+    ],
+    "extra": {
+      "websiteUrl": "https://www.theknoxvilledroneguy.com"
     }
   }
 }
