@@ -26,7 +26,15 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { WebView } from 'react-native-webview';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  updateEmail,
+  updatePassword,
+  updateProfile,
+} from 'firebase/auth';
 import {
   addDoc,
   collection,
@@ -51,6 +59,7 @@ import {
   JobStatus,
   JobUpdate,
   FinishedVideoLength,
+  NotificationPreference,
   RecurrenceFrequency,
   ShootRequest,
   ShootService,
@@ -89,6 +98,7 @@ const clientUser: AppUser = {
   email: 'client@example.com',
   displayName: 'Demo Client',
   role: 'client',
+  notificationPreference: 'all',
 };
 
 const now = Date.now();
@@ -201,6 +211,16 @@ const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }
   { key: 'account', label: 'Account', icon: 'person-circle-outline' },
 ];
 
+const notificationPreferenceOptions: {
+  value: NotificationPreference;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { value: 'all', label: 'All', icon: 'notifications-outline' },
+  { value: 'messages', label: 'Messages', icon: 'chatbubble-ellipses-outline' },
+  { value: 'progress_updates', label: 'Progress Updates', icon: 'briefcase-outline' },
+];
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -217,6 +237,7 @@ export default function App() {
   const [selectedThreadId, setSelectedThreadId] = useState(demoThread.id);
   const [selectedJobId, setSelectedJobId] = useState(demoJob.id);
   const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
+  const [lastChatViewedAt, setLastChatViewedAt] = useState(Date.now());
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -239,6 +260,14 @@ export default function App() {
 
   const selectedThread = visibleThreads.find((thread) => thread.id === selectedThreadId) ?? visibleThreads[0];
   const selectedJob = visibleJobs.find((job) => job.id === selectedJobId) ?? visibleJobs[0];
+  const unreadMessageCount = useMemo(() => {
+    if (!user) return 0;
+    return data.messages.filter((message) => message.senderId !== user.uid && message.createdAt > lastChatViewedAt).length;
+  }, [data.messages, lastChatViewedAt, user]);
+
+  useEffect(() => {
+    if (activeTab === 'chat') setLastChatViewedAt(Date.now());
+  }, [activeTab, selectedThreadId, data.messages.length]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth || !db) return undefined;
@@ -261,6 +290,7 @@ export default function App() {
           firebaseUser.email?.split('@')[0] ??
           'Client',
         role,
+        notificationPreference: userDoc.data()?.notificationPreference ?? 'all',
       };
 
       await setDoc(
@@ -269,6 +299,7 @@ export default function App() {
           email: appUser.email,
           displayName: appUser.displayName,
           role,
+          notificationPreference: appUser.notificationPreference,
           updatedAt: Date.now(),
         },
         { merge: true },
@@ -457,6 +488,59 @@ export default function App() {
     }));
   };
 
+  const updateAccountSettings = async ({
+    displayName,
+    email,
+    newPassword,
+    notificationPreference,
+  }: {
+    displayName: string;
+    email: string;
+    newPassword?: string;
+    notificationPreference: NotificationPreference;
+  }) => {
+    if (!user) return;
+    const trimmedName = displayName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedName || !trimmedEmail) throw new Error('Name and email are required.');
+
+    if (isFirebaseConfigured && auth?.currentUser && db) {
+      if (auth.currentUser.displayName !== trimmedName) {
+        await updateProfile(auth.currentUser, { displayName: trimmedName });
+      }
+      if (auth.currentUser.email !== trimmedEmail) {
+        await updateEmail(auth.currentUser, trimmedEmail);
+      }
+      if (newPassword?.trim()) {
+        const passwordProblem = getPasswordProblem(newPassword);
+        if (passwordProblem) throw new Error(passwordProblem);
+        await updatePassword(auth.currentUser, newPassword);
+      }
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          displayName: trimmedName,
+          email: trimmedEmail,
+          notificationPreference,
+          updatedAt: Date.now(),
+        },
+        { merge: true },
+      );
+    }
+
+    setData((current) => ({
+      ...current,
+      user: current.user
+        ? {
+            ...current.user,
+            displayName: trimmedName,
+            email: trimmedEmail,
+            notificationPreference,
+          }
+        : current.user,
+    }));
+  };
+
   const editJobUpdate = async (
     job: Job,
     updateId: string,
@@ -589,7 +673,7 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (!user) return <AccountScreen user={user} switchRole={switchRole} />;
+    if (!user) return <AccountScreen onUpdateSettings={updateAccountSettings} user={user} switchRole={switchRole} />;
     if (activeTab === 'website') return <WebsiteScreen />;
     if (activeTab === 'chat') {
       return (
@@ -624,7 +708,7 @@ export default function App() {
         />
       );
     }
-    return <AccountScreen user={user} switchRole={switchRole} />;
+    return <AccountScreen onUpdateSettings={updateAccountSettings} user={user} switchRole={switchRole} />;
   };
 
   return (
@@ -651,8 +735,22 @@ export default function App() {
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
           return (
-            <Pressable key={tab.key} style={styles.tabButton} onPress={() => setActiveTab(tab.key)}>
-              <Ionicons name={tab.icon} size={22} color={active ? '#0f766e' : '#687076'} />
+            <Pressable
+              key={tab.key}
+              style={styles.tabButton}
+              onPress={() => {
+                if (tab.key === 'chat') setLastChatViewedAt(Date.now());
+                setActiveTab(tab.key);
+              }}
+            >
+              <View style={styles.tabIconWrap}>
+                <Ionicons name={tab.icon} size={22} color={active ? '#0f766e' : '#687076'} />
+                {tab.key === 'chat' && unreadMessageCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={[styles.tabLabel, active && styles.activeTabLabel]}>{tab.label}</Text>
             </Pressable>
           );
@@ -1080,7 +1178,9 @@ function ShootRequestForm({
   const [title, setTitle] = useState('');
   const [requesterName, setRequesterName] = useState(user.displayName);
   const [requestedDate, setRequestedDate] = useState<Date | null>(null);
+  const [requestedTime, setRequestedTime] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [projectAddress, setProjectAddress] = useState('');
   const [details, setDetails] = useState('');
   const [services, setServices] = useState<ShootService[]>([]);
@@ -1143,6 +1243,7 @@ function ShootRequestForm({
       ...(!requesterName.trim() ? ['requesterName'] : []),
       ...(!title.trim() ? ['title'] : []),
       ...(!requestedDate ? ['requestedDate'] : []),
+      ...(!requestedTime ? ['requestedTime'] : []),
       ...(!projectAddress.trim() ? ['projectAddress'] : []),
       ...(!details.trim() ? ['details'] : []),
       ...(services.length === 0 ? ['services'] : []),
@@ -1164,9 +1265,13 @@ function ShootRequestForm({
     }
 
     const confirmedRequestedDate = requestedDate;
-    if (!confirmedRequestedDate) return;
+    const confirmedRequestedTime = requestedTime;
+    if (!confirmedRequestedDate || !confirmedRequestedTime) return;
 
-    if (confirmedRequestedDate < tomorrow) {
+    const requestedDateTime = new Date(confirmedRequestedDate);
+    requestedDateTime.setHours(confirmedRequestedTime.getHours(), confirmedRequestedTime.getMinutes(), 0, 0);
+
+    if (requestedDateTime < tomorrow) {
       Alert.alert('Choose another date', 'Same-day project requests are disabled.');
       return;
     }
@@ -1177,8 +1282,9 @@ function ShootRequestForm({
       await onSubmit({
         requesterName: requesterName.trim(),
         title: title.trim(),
-        requestedWhen: formatProjectDate(confirmedRequestedDate),
-        requestedDate: confirmedRequestedDate.toISOString(),
+        requestedWhen: `${formatProjectDate(confirmedRequestedDate)} at ${formatClockTime(confirmedRequestedTime)}`,
+        requestedDate: requestedDateTime.toISOString(),
+        requestedTime: formatClockTime(confirmedRequestedTime),
         projectAddress: projectAddress.trim(),
         services,
         otherDescription: selectedOther ? otherDescription.trim() : undefined,
@@ -1196,6 +1302,7 @@ function ShootRequestForm({
       setTitle('');
       setRequesterName(user.displayName);
       setRequestedDate(null);
+      setRequestedTime(null);
       setProjectAddress('');
       setDetails('');
       setServices([]);
@@ -1271,6 +1378,30 @@ function ShootRequestForm({
           }}
         />
       )}
+      <Pressable
+        style={[styles.formSelectRow, hasError('requestedTime') && styles.validationErrorBorder]}
+        onPress={() => setShowTimePicker((current) => !current)}
+      >
+        <Ionicons name="time-outline" size={22} color="#8b95a1" />
+        <Text style={[styles.formSelectText, !requestedTime && styles.formPlaceholderText]}>
+          {requestedTime ? formatClockTime(requestedTime) : 'Select Time'}
+        </Text>
+        <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+      </Pressable>
+      {showTimePicker && (
+        <DateTimePicker
+          value={requestedTime ?? new Date()}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(_, date) => {
+            if (Platform.OS !== 'ios') setShowTimePicker(false);
+            if (date) {
+              setRequestedTime(date);
+              clearValidationError('requestedTime');
+            }
+          }}
+        />
+      )}
       <IconTextInput
         error={hasError('projectAddress')}
         icon="location-outline"
@@ -1285,7 +1416,14 @@ function ShootRequestForm({
       {filteredAddresses.length > 0 && (
         <View style={styles.suggestionBox}>
           {filteredAddresses.map((address) => (
-            <Pressable key={address} style={styles.suggestionItem} onPress={() => setProjectAddress(address)}>
+            <Pressable
+              key={address}
+              style={styles.suggestionItem}
+              onPress={() => {
+                setProjectAddress(address);
+                clearValidationError('projectAddress');
+              }}
+            >
               <Ionicons name="location-outline" size={16} color="#0f766e" />
               <Text style={styles.suggestionText}>{address}</Text>
             </Pressable>
@@ -1700,9 +1838,16 @@ function JobUpdateRow({
 }
 
 function AccountScreen({
+  onUpdateSettings,
   user,
   switchRole,
 }: {
+  onUpdateSettings: (settings: {
+    displayName: string;
+    email: string;
+    newPassword?: string;
+    notificationPreference: NotificationPreference;
+  }) => Promise<void>;
   user: AppUser | null;
   switchRole: (role: AppUser['role']) => void;
 }) {
@@ -1712,6 +1857,18 @@ function AccountScreen({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [settingsName, setSettingsName] = useState(user?.displayName ?? '');
+  const [settingsEmail, setSettingsEmail] = useState(user?.email ?? '');
+  const [settingsPassword, setSettingsPassword] = useState('');
+  const [notificationPreference, setNotificationPreference] = useState<NotificationPreference>(user?.notificationPreference ?? 'all');
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [openLegal, setOpenLegal] = useState<'terms' | 'privacy' | null>(null);
+
+  useEffect(() => {
+    setSettingsName(user?.displayName ?? '');
+    setSettingsEmail(user?.email ?? '');
+    setNotificationPreference(user?.notificationPreference ?? 'all');
+  }, [user?.displayName, user?.email, user?.notificationPreference]);
 
   const handleSignIn = async () => {
     if (!auth) return;
@@ -1760,6 +1917,7 @@ function AccountScreen({
         email: trimmedEmail,
         displayName: trimmedName,
         role: 'client',
+        notificationPreference: 'all',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -1775,6 +1933,43 @@ function AccountScreen({
   const handleSignOut = async () => {
     if (!auth) return;
     await signOut(auth);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!settingsName.trim() || !settingsEmail.trim()) {
+      Alert.alert('Settings not saved', 'Name and email are required.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settingsEmail.trim())) {
+      Alert.alert('Settings not saved', 'Enter a valid email address.');
+      return;
+    }
+    if (settingsPassword.trim()) {
+      const passwordProblem = getPasswordProblem(settingsPassword);
+      if (passwordProblem) {
+        Alert.alert('Password needs work', passwordProblem);
+        return;
+      }
+    }
+
+    setSettingsBusy(true);
+    try {
+      await onUpdateSettings({
+        displayName: settingsName,
+        email: settingsEmail,
+        newPassword: settingsPassword.trim() || undefined,
+        notificationPreference,
+      });
+      setSettingsPassword('');
+      Alert.alert('Settings saved', 'Your account settings were updated.');
+    } catch (error) {
+      Alert.alert(
+        'Settings not saved',
+        error instanceof Error ? error.message : 'Try signing in again before changing email or password.',
+      );
+    } finally {
+      setSettingsBusy(false);
+    }
   };
 
   return (
@@ -1849,13 +2044,82 @@ function AccountScreen({
           <PrimaryButton label="Use Admin Demo" icon="shield-checkmark-outline" onPress={() => switchRole('admin')} />
         </View>
       </View>
+      {user && (
+        <View style={styles.accountCard}>
+          <Text style={styles.smallTitle}>Settings</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name or Business Name"
+            value={settingsName}
+            onChangeText={setSettingsName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={settingsEmail}
+            onChangeText={setSettingsEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="New Password"
+            value={settingsPassword}
+            onChangeText={setSettingsPassword}
+            secureTextEntry
+            textContentType="newPassword"
+          />
+          <Text style={styles.formLabel}>Notify Me About</Text>
+          <View style={styles.serviceGrid}>
+            {notificationPreferenceOptions.map((option) => {
+              const active = notificationPreference === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  style={[styles.serviceButton, active && styles.activeServiceButton]}
+                  onPress={() => setNotificationPreference(option.value)}
+                >
+                  <Ionicons name={option.icon} size={19} color={active ? '#ffffff' : '#0f766e'} />
+                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <PrimaryButton
+            label={settingsBusy ? 'Saving Settings...' : 'Save Settings'}
+            icon="save-outline"
+            loading={settingsBusy}
+            disabled={settingsBusy}
+            onPress={handleSaveSettings}
+          />
+        </View>
+      )}
       <View style={styles.accountCard}>
-        <Text style={styles.smallTitle}>Production setup checklist</Text>
-        <ChecklistItem text="Add Firebase environment variables." />
-        <ChecklistItem text="Deploy Firestore and Storage rules." />
-        <ChecklistItem text="Configure APNs key in Firebase for iOS notifications." />
-        <ChecklistItem text="Create admin custom claim for your account." />
-        <ChecklistItem text="Add website chat widget using the same Firebase project." />
+        <Text style={styles.smallTitle}>Legal</Text>
+        <Pressable
+          style={styles.legalLinkRow}
+          onPress={() => setOpenLegal((current) => (current === 'terms' ? null : 'terms'))}
+        >
+          <Text style={styles.legalLinkText}>Terms of Service</Text>
+          <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color="#0f766e" />
+        </Pressable>
+        {openLegal === 'terms' && (
+          <Text style={styles.legalText}>
+            By using this app, clients agree to provide accurate project details, confirm they have permission for filming locations, and use delivered media according to the agreed project terms. Scheduling, weather, airspace restrictions, and safety requirements may affect shoot timing.
+          </Text>
+        )}
+        <Pressable
+          style={styles.legalLinkRow}
+          onPress={() => setOpenLegal((current) => (current === 'privacy' ? null : 'privacy'))}
+        >
+          <Text style={styles.legalLinkText}>Privacy Policy</Text>
+          <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color="#0f766e" />
+        </Pressable>
+        {openLegal === 'privacy' && (
+          <Text style={styles.legalText}>
+            This app uses account details, chat messages, project requests, media attachments, notifications, and job progress information to manage client projects. Location sharing is limited to active shoot progress when enabled by the admin for a specific project.
+          </Text>
+        )}
       </View>
       <PrimaryButton
         label="Request Notification Permission"
@@ -3239,6 +3503,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
   },
+  tabIconWrap: {
+    minWidth: 28,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -7,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+  },
+  tabBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   tabLabel: {
     color: '#687076',
     fontSize: 12,
@@ -3246,5 +3533,24 @@ const styles = StyleSheet.create({
   },
   activeTabLabel: {
     color: '#0f766e',
+  },
+  legalText: {
+    color: '#405048',
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  legalLinkRow: {
+    minHeight: 44,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f7fbfb',
+  },
+  legalLinkText: {
+    color: '#0f766e',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

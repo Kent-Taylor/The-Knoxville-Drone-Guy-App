@@ -38,12 +38,12 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 
 ## Collections
 
-- `users/{uid}`: email, displayName, role, expoPushTokens, createdAt, updatedAt.
+- `users/{uid}`: email, displayName, role, notificationPreference, expoPushTokens, createdAt, updatedAt.
 - `chatThreads/{threadId}`: clientId, clientName, lastMessage, updatedAt.
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
 - `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
-- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, videoEditFormat, videoEditOther, finishedVideoLength, finishedVideoLengthOther, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, requestedTime, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, videoEditFormat, videoEditOther, finishedVideoLength, finishedVideoLengthOther, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
 
 ## Shoot Request Intake
 

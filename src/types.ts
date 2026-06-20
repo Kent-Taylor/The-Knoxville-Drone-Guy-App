@@ -1,4 +1,5 @@
 export type UserRole = 'admin' | 'client';
+export type NotificationPreference = 'all' | 'messages' | 'progress_updates';
 
 export type JobStatus =
   | 'scheduled'
@@ -15,6 +16,7 @@ export type AppUser = {
   email: string;
   displayName: string;
   role: UserRole;
+  notificationPreference?: NotificationPreference;
 };
 
 export type Attachment = {
@@ -107,6 +109,7 @@ export type ShootRequest = {
   title: string;
   requestedWhen: string;
   requestedDate: string;
+  requestedTime?: string;
   projectAddress: string;
   homeBaseAddress?: string;
   routeDistanceMiles?: number;
@@ -182,10 +185,10 @@ export const videoEditFormats: { value: VideoEditFormat; label: string }[] = [
 ];
 
 export const finishedVideoLengths: { value: FinishedVideoLength; label: string }[] = [
-  { value: '15_30_seconds', label: '15-30 seconds' },
-  { value: '30_60_seconds', label: '30-60 seconds' },
+  { value: '15_30_seconds', label: '15-30 Seconds' },
+  { value: '30_60_seconds', label: '30-60 Seconds' },
   { value: '2_3_minutes', label: '2-3 Minutes' },
-  { value: '4_6_minutes', label: '4-6 minutes' },
-  { value: '8_10_minutes', label: '8-10 minutes' },
+  { value: '4_6_minutes', label: '4-6 Minutes' },
+  { value: '8_10_minutes', label: '8-10 Minutes' },
   { value: 'other', label: 'Other' },
 ];
