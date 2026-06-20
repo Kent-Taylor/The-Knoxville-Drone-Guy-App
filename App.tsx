@@ -942,6 +942,8 @@ function JobsScreen({
   const [note, setNote] = useState('');
   const [draftTitle, setDraftTitle] = useState(selectedJob?.title ?? '');
   const [pendingMedia, setPendingMedia] = useState<Attachment | null>(null);
+  const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   useEffect(() => {
     setDraftTitle(selectedJob?.title ?? '');
@@ -1030,58 +1032,75 @@ function JobsScreen({
         </View>
       )}
       <View style={styles.jobsList}>
-        <Text style={styles.smallTitle}>Projects</Text>
-        {activeJobs.length === 0 ? (
-          <Text style={styles.muted}>No active projects right now.</Text>
-        ) : (
-          activeJobs.map((job) => (
-            <Pressable
-              key={job.id}
-              style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
-              onPress={() => setSelectedJobId(job.id)}
-            >
-              <View style={styles.flexOne}>
-                <Text style={styles.jobListTitle}>{job.title}</Text>
-                <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
-              </View>
-              <View style={styles.statusPillSmall}>
-                <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
-              </View>
-              <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
-            </Pressable>
-          ))
+        <Pressable style={styles.accordionHeader} onPress={() => setProjectsExpanded((current) => !current)}>
+          <View style={styles.accordionTitleWrap}>
+            <Text style={styles.accordionTitle}>Projects</Text>
+            <Text style={styles.accordionSubtitle}>Active projects and progress updates.</Text>
+          </View>
+          <View style={styles.historyCountPill}>
+            <Text style={styles.historyCountText}>{activeJobs.length}</Text>
+          </View>
+          <Ionicons name={projectsExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
+        </Pressable>
+        {projectsExpanded && (
+          activeJobs.length === 0 ? (
+            <Text style={styles.muted}>No active projects right now.</Text>
+          ) : (
+            activeJobs.map((job) => (
+              <Pressable
+                key={job.id}
+                style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
+                onPress={() => setSelectedJobId(job.id)}
+              >
+                <View style={styles.flexOne}>
+                  <Text style={styles.jobListTitle}>{job.title}</Text>
+                  <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+                </View>
+                <View style={styles.statusPillSmall}>
+                  <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+                </View>
+                <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+              </Pressable>
+            ))
+          )
         )}
-        <View style={styles.historyHeader}>
-          <View>
-            <Text style={styles.historyTitle}>History</Text>
-            <Text style={styles.historySubtitle}>Completed projects are saved here.</Text>
+        <Pressable
+          style={[styles.accordionHeader, styles.historyHeader]}
+          onPress={() => setHistoryExpanded((current) => !current)}
+        >
+          <View style={styles.accordionTitleWrap}>
+            <Text style={styles.accordionTitle}>History</Text>
+            <Text style={styles.accordionSubtitle}>Completed projects are saved here.</Text>
           </View>
           <View style={styles.historyCountPill}>
             <Text style={styles.historyCountText}>{historyJobs.length}</Text>
           </View>
-        </View>
-        {historyJobs.length === 0 ? (
-          <View style={styles.historyEmpty}>
-            <Ionicons name="archive-outline" size={18} color="#687076" />
-            <Text style={styles.muted}>Projects marked Job Completed will appear here.</Text>
-          </View>
-        ) : (
-          historyJobs.map((job) => (
-          <Pressable
-            key={job.id}
-            style={[styles.jobListItem, styles.historyJobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
-            onPress={() => setSelectedJobId(job.id)}
-          >
-            <View style={styles.flexOne}>
-              <Text style={styles.jobListTitle}>{job.title}</Text>
-              <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+          <Ionicons name={historyExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
+        </Pressable>
+        {historyExpanded && (
+          historyJobs.length === 0 ? (
+            <View style={styles.historyEmpty}>
+              <Ionicons name="archive-outline" size={18} color="#687076" />
+              <Text style={styles.muted}>Projects marked Job Completed will appear here.</Text>
             </View>
-            <View style={styles.statusPillSmall}>
-              <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
-            </View>
-            <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
-          </Pressable>
-          ))
+          ) : (
+            historyJobs.map((job) => (
+              <Pressable
+                key={job.id}
+                style={[styles.jobListItem, styles.historyJobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
+                onPress={() => setSelectedJobId(job.id)}
+              >
+                <View style={styles.flexOne}>
+                  <Text style={styles.jobListTitle}>{job.title}</Text>
+                  <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+                </View>
+                <View style={styles.statusPillSmall}>
+                  <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+                </View>
+                <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+              </Pressable>
+            ))
+          )
         )}
       </View>
       <View style={styles.jobHero}>
@@ -1237,6 +1256,7 @@ function ShootRequestForm({
   const [showFinishedVideoLengthPicker, setShowFinishedVideoLengthPicker] = useState(false);
   const [finishedVideoLengthOther, setFinishedVideoLengthOther] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [requestExpanded, setRequestExpanded] = useState(true);
 
   const filteredAddresses = useMemo(() => {
     const needle = projectAddress.trim().toLowerCase();
@@ -1369,343 +1389,353 @@ function ShootRequestForm({
 
   return (
     <View style={styles.shootRequestCard}>
-      <Text style={styles.formTitle}>Request a Project Shoot</Text>
-      <IconTextInput
-        error={hasError('requesterName')}
-        icon="person-outline"
-        placeholder="Your name or business name"
-        value={requesterName}
-        onChangeText={(value) => {
-          setRequesterName(value);
-          clearValidationError('requesterName');
-        }}
-        textContentType="organizationName"
-      />
-      <IconTextInput
-        error={hasError('title')}
-        icon="document-outline"
-        placeholder="Project name"
-        value={title}
-        onChangeText={(value) => {
-          setTitle(value);
-          clearValidationError('title');
-        }}
-      />
-      <Pressable
-        style={[styles.formSelectRow, hasError('requestedDate') && styles.validationErrorBorder]}
-        onPress={() => setShowDatePicker((current) => !current)}
-      >
-        <Ionicons name="calendar-outline" size={22} color="#8b95a1" />
-        <Text style={[styles.formSelectText, !requestedDate && styles.formPlaceholderText]}>
-          {requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
-        </Text>
-        <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+      <Pressable style={styles.accordionHeader} onPress={() => setRequestExpanded((current) => !current)}>
+        <View style={styles.accordionTitleWrap}>
+          <Text style={styles.accordionTitle}>Request a Project Shoot</Text>
+          <Text style={styles.accordionSubtitle}>Send project details, timing, and scope.</Text>
+        </View>
+        <Ionicons name={requestExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
       </Pressable>
-      {showDatePicker && (
-        <DateTimePicker
-          value={requestedDate ?? tomorrow}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-          minimumDate={tomorrow}
-          onChange={(_, date) => {
-            if (Platform.OS !== 'ios') setShowDatePicker(false);
-            if (date) {
-              setRequestedDate(date < tomorrow ? tomorrow : date);
-              clearValidationError('requestedDate');
-            }
-          }}
-        />
-      )}
-      <Pressable
-        style={[styles.formSelectRow, hasError('requestedTime') && styles.validationErrorBorder]}
-        onPress={() => setShowTimePicker((current) => !current)}
-      >
-        <Ionicons name="time-outline" size={22} color="#8b95a1" />
-        <Text style={[styles.formSelectText, !requestedTime && styles.formPlaceholderText]}>
-          {requestedTime ? formatClockTime(requestedTime) : 'Select Time'}
-        </Text>
-        <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
-      </Pressable>
-      {showTimePicker && (
-        <DateTimePicker
-          value={requestedTime ?? new Date()}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(_, date) => {
-            if (Platform.OS !== 'ios') setShowTimePicker(false);
-            if (date) {
-              setRequestedTime(date);
-              clearValidationError('requestedTime');
-            }
-          }}
-        />
-      )}
-      <IconTextInput
-        error={hasError('projectAddress')}
-        icon="location-outline"
-        placeholder="Project address"
-        value={projectAddress}
-        onChangeText={(value) => {
-          setProjectAddress(value);
-          clearValidationError('projectAddress');
-        }}
-        textContentType="fullStreetAddress"
-      />
-      {filteredAddresses.length > 0 && (
-        <View style={styles.suggestionBox}>
-          {filteredAddresses.map((address) => (
-            <Pressable
-              key={address}
-              style={styles.suggestionItem}
-              onPress={() => {
-                setProjectAddress(address);
-                clearValidationError('projectAddress');
-              }}
-            >
-              <Ionicons name="location-outline" size={16} color="#0f766e" />
-              <Text style={styles.suggestionText}>{address}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-      <Text style={styles.formLabel}>Project Scope</Text>
-      <View style={[styles.serviceGrid, hasError('services') && styles.validationErrorGroup]}>
-        {shootServices.map((service) => {
-          const active = services.includes(service.value);
-          return (
-            <Pressable
-              key={service.value}
-              style={[styles.serviceButton, active && styles.activeServiceButton]}
-              onPress={() => toggleService(service.value)}
-            >
-              <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : '#0f766e'} />
-              <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{service.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {selectedVideoEdit && (
-        <View style={styles.conditionalPanel}>
-          <Text style={styles.formLabel}>Video Type</Text>
-          <Pressable
-            style={[styles.formSelectRow, hasError('videoEditFormat') && styles.validationErrorBorder]}
-            onPress={() => setShowVideoEditFormatPicker((current) => !current)}
-          >
-            <Ionicons name="film-outline" size={22} color="#8b95a1" />
-            <Text style={[styles.formSelectText, !videoEditFormat && styles.formPlaceholderText]}>
-              {formatVideoEditFormat(videoEditFormat)}
-            </Text>
-            <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
-          </Pressable>
-          {showVideoEditFormatPicker && (
-            <View style={styles.selectOptionList}>
-              {videoEditFormats.map((format) => (
-                <Pressable
-                  key={format.value}
-                  style={styles.selectOptionRow}
-                  onPress={() => {
-                    setVideoEditFormat(format.value);
-                    setShowVideoEditFormatPicker(false);
-                    setFinishedVideoLength(null);
-                    setFinishedVideoLengthOther('');
-                    clearValidationError('videoEditFormat');
-                    clearValidationError('videoEditOther');
-                    clearValidationError('finishedVideoLength');
-                    clearValidationError('finishedVideoLengthOther');
-                  }}
-                >
-                  <Text style={styles.selectOptionText}>{format.label}</Text>
-                  {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
-                </Pressable>
-              ))}
-            </View>
-          )}
-          {videoEditFormat === 'other' && (
-            <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('videoEditOther') && styles.validationErrorBorder]}>
-              <Ionicons name="create-outline" size={22} color="#8b95a1" />
-              <TextInput
-                style={[styles.formTextInput, styles.formTextArea]}
-                placeholder="Describe the video type"
-                placeholderTextColor="#a4abb4"
-                value={videoEditOther}
-                onChangeText={(value) => {
-                  setVideoEditOther(value);
-                  clearValidationError('videoEditOther');
-                }}
-                multiline
-              />
-            </View>
-          )}
-          {requiresFinishedVideoLength && (
-            <>
-              <Text style={styles.formLabel}>Length of Finished Video</Text>
-              <Pressable
-                style={[styles.formSelectRow, hasError('finishedVideoLength') && styles.validationErrorBorder]}
-                onPress={() => setShowFinishedVideoLengthPicker((current) => !current)}
-              >
-                <Ionicons name="time-outline" size={22} color="#8b95a1" />
-                <Text style={[styles.formSelectText, !finishedVideoLength && styles.formPlaceholderText]}>
-                  {formatFinishedVideoLength(finishedVideoLength)}
-                </Text>
-                <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
-              </Pressable>
-              {showFinishedVideoLengthPicker && (
-                <View style={styles.selectOptionList}>
-                  {finishedVideoLengths.map((length) => (
-                    <Pressable
-                      key={length.value}
-                      style={styles.selectOptionRow}
-                      onPress={() => {
-                        setFinishedVideoLength(length.value);
-                        setShowFinishedVideoLengthPicker(false);
-                        setFinishedVideoLengthOther('');
-                        clearValidationError('finishedVideoLength');
-                        clearValidationError('finishedVideoLengthOther');
-                      }}
-                    >
-                      <Text style={styles.selectOptionText}>{length.label}</Text>
-                      {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-              {finishedVideoLength === 'other' && (
-                <IconTextInput
-                  error={hasError('finishedVideoLengthOther')}
-                  icon="create-outline"
-                  placeholder="Enter finished video length"
-                  value={finishedVideoLengthOther}
-                  onChangeText={(value) => {
-                    setFinishedVideoLengthOther(value);
-                    clearValidationError('finishedVideoLengthOther');
-                  }}
-                />
-              )}
-            </>
-          )}
-        </View>
-      )}
-      {services.includes('other') && (
-        <TextInput
-          style={[styles.input, styles.noteInput, styles.modernTextArea, hasError('otherDescription') && styles.validationErrorBorder]}
-          placeholder="Describe the project"
-          value={otherDescription}
-          onChangeText={(value) => {
-            setOtherDescription(value);
-            clearValidationError('otherDescription');
-          }}
-          multiline
-        />
-      )}
-      <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('details') && styles.validationErrorBorder]}>
-        <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
-        <TextInput
-          style={[styles.formTextInput, styles.formTextArea]}
-          placeholder="Describe the project the best you can"
-          placeholderTextColor="#a4abb4"
-          value={details}
-          onChangeText={(value) => {
-            setDetails(value);
-            clearValidationError('details');
-          }}
-          multiline
-        />
-      </View>
-      <Pressable
-        style={styles.radioRow}
-        onPress={() => {
-          setIsRecurring((current) => !current);
-          if (isRecurring) {
-            setRecurrenceFrequency(null);
-            setRecurrenceOther('');
-            setRecurrenceEndDate(null);
-            setValidationErrors((errors) =>
-              errors.filter((item) => !['recurrenceFrequency', 'recurrenceOther', 'recurrenceEndDate'].includes(item)),
-            );
-          }
-        }}
-      >
-        <Ionicons name={isRecurring ? 'radio-button-on' : 'ellipse-outline'} size={30} color="#0f766e" />
-        <View style={styles.flexOne}>
-          <Text style={styles.radioText}>Recurring shoot</Text>
-          <Text style={styles.radioSubText}>This is an ongoing or repeating project</Text>
-        </View>
-      </Pressable>
-      {isRecurring && (
-        <View style={styles.recurringBox}>
-          <Text style={styles.formLabel}>Frequency</Text>
-          <View style={[styles.serviceGrid, hasError('recurrenceFrequency') && styles.validationErrorGroup]}>
-            {recurrenceFrequencies.map((frequency) => {
-              const active = recurrenceFrequency === frequency.value;
-              return (
-                <Pressable
-                  key={frequency.value}
-                  style={[styles.serviceButton, active && styles.activeServiceButton]}
-                  onPress={() => {
-                    setRecurrenceFrequency(frequency.value);
-                    clearValidationError('recurrenceFrequency');
-                    clearValidationError('recurrenceOther');
-                  }}
-                >
-                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>
-                    {frequency.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {recurrenceFrequency === 'other' && (
-            <IconTextInput
-              error={hasError('recurrenceOther')}
-              icon="repeat-outline"
-              placeholder="Custom recurrence"
-              value={recurrenceOther}
-              onChangeText={(value) => {
-                setRecurrenceOther(value);
-                clearValidationError('recurrenceOther');
-              }}
-            />
-          )}
-          <Pressable
-            style={[styles.formSelectRow, hasError('recurrenceEndDate') && styles.validationErrorBorder]}
-            onPress={() => setShowRecurrenceEndPicker((current) => !current)}
-          >
-            <Ionicons name="calendar-clear-outline" size={22} color="#8b95a1" />
-            <Text style={[styles.formSelectText, !recurrenceEndDate && styles.formPlaceholderText]}>
-              {recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
-            </Text>
-            <Ionicons name={showRecurrenceEndPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
-          </Pressable>
-          {showRecurrenceEndPicker && (
-            <DateTimePicker
-              value={recurrenceEndDate ?? requestedDate ?? tomorrow}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-              minimumDate={requestedDate ?? tomorrow}
-              onChange={(_, date) => {
-                if (Platform.OS !== 'ios') setShowRecurrenceEndPicker(false);
-                if (date) {
-                  setRecurrenceEndDate(date);
-                  clearValidationError('recurrenceEndDate');
-                }
-              }}
-            />
-          )}
-        </View>
-      )}
       {showSentBanner && (
         <View style={styles.requestSentBanner}>
           <Ionicons name="checkmark-circle-outline" size={22} color="#ffffff" />
           <Text style={styles.requestSentText}>Request Sent!</Text>
         </View>
       )}
-      <PrimaryButton
-        label={submitting ? 'Sending Request...' : 'Send Shoot Request'}
-        icon="paper-plane-outline"
-        loading={submitting}
-        disabled={submitting}
-        onPress={submit}
-      />
+      {requestExpanded && (
+        <>
+          <IconTextInput
+            error={hasError('requesterName')}
+            icon="person-outline"
+            placeholder="Your name or business name"
+            value={requesterName}
+            onChangeText={(value) => {
+              setRequesterName(value);
+              clearValidationError('requesterName');
+            }}
+            textContentType="organizationName"
+          />
+          <IconTextInput
+            error={hasError('title')}
+            icon="document-outline"
+            placeholder="Project name"
+            value={title}
+            onChangeText={(value) => {
+              setTitle(value);
+              clearValidationError('title');
+            }}
+          />
+          <Pressable
+            style={[styles.formSelectRow, hasError('requestedDate') && styles.validationErrorBorder]}
+            onPress={() => setShowDatePicker((current) => !current)}
+          >
+            <Ionicons name="calendar-outline" size={22} color="#8b95a1" />
+            <Text style={[styles.formSelectText, !requestedDate && styles.formPlaceholderText]}>
+              {requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
+            </Text>
+            <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+          </Pressable>
+          {showDatePicker && (
+            <DateTimePicker
+              value={requestedDate ?? tomorrow}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+              minimumDate={tomorrow}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowDatePicker(false);
+                if (date) {
+                  setRequestedDate(date < tomorrow ? tomorrow : date);
+                  clearValidationError('requestedDate');
+                }
+              }}
+            />
+          )}
+          <Pressable
+            style={[styles.formSelectRow, hasError('requestedTime') && styles.validationErrorBorder]}
+            onPress={() => setShowTimePicker((current) => !current)}
+          >
+            <Ionicons name="time-outline" size={22} color="#8b95a1" />
+            <Text style={[styles.formSelectText, !requestedTime && styles.formPlaceholderText]}>
+              {requestedTime ? formatClockTime(requestedTime) : 'Select Time'}
+            </Text>
+            <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+          </Pressable>
+          {showTimePicker && (
+            <DateTimePicker
+              value={requestedTime ?? new Date()}
+              mode="time"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowTimePicker(false);
+                if (date) {
+                  setRequestedTime(date);
+                  clearValidationError('requestedTime');
+                }
+              }}
+            />
+          )}
+          <IconTextInput
+            error={hasError('projectAddress')}
+            icon="location-outline"
+            placeholder="Project address"
+            value={projectAddress}
+            onChangeText={(value) => {
+              setProjectAddress(value);
+              clearValidationError('projectAddress');
+            }}
+            textContentType="fullStreetAddress"
+          />
+          {filteredAddresses.length > 0 && (
+            <View style={styles.suggestionBox}>
+              {filteredAddresses.map((address) => (
+                <Pressable
+                  key={address}
+                  style={styles.suggestionItem}
+                  onPress={() => {
+                    setProjectAddress(address);
+                    clearValidationError('projectAddress');
+                  }}
+                >
+                  <Ionicons name="location-outline" size={16} color="#0f766e" />
+                  <Text style={styles.suggestionText}>{address}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          <Text style={styles.formLabel}>Project Scope</Text>
+          <View style={[styles.serviceGrid, hasError('services') && styles.validationErrorGroup]}>
+            {shootServices.map((service) => {
+              const active = services.includes(service.value);
+              return (
+                <Pressable
+                  key={service.value}
+                  style={[styles.serviceButton, active && styles.activeServiceButton]}
+                  onPress={() => toggleService(service.value)}
+                >
+                  <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : '#0f766e'} />
+                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{service.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {selectedVideoEdit && (
+            <View style={styles.conditionalPanel}>
+              <Text style={styles.formLabel}>Video Type</Text>
+              <Pressable
+                style={[styles.formSelectRow, hasError('videoEditFormat') && styles.validationErrorBorder]}
+                onPress={() => setShowVideoEditFormatPicker((current) => !current)}
+              >
+                <Ionicons name="film-outline" size={22} color="#8b95a1" />
+                <Text style={[styles.formSelectText, !videoEditFormat && styles.formPlaceholderText]}>
+                  {formatVideoEditFormat(videoEditFormat)}
+                </Text>
+                <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+              </Pressable>
+              {showVideoEditFormatPicker && (
+                <View style={styles.selectOptionList}>
+                  {videoEditFormats.map((format) => (
+                    <Pressable
+                      key={format.value}
+                      style={styles.selectOptionRow}
+                      onPress={() => {
+                        setVideoEditFormat(format.value);
+                        setShowVideoEditFormatPicker(false);
+                        setFinishedVideoLength(null);
+                        setFinishedVideoLengthOther('');
+                        clearValidationError('videoEditFormat');
+                        clearValidationError('videoEditOther');
+                        clearValidationError('finishedVideoLength');
+                        clearValidationError('finishedVideoLengthOther');
+                      }}
+                    >
+                      <Text style={styles.selectOptionText}>{format.label}</Text>
+                      {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {videoEditFormat === 'other' && (
+                <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('videoEditOther') && styles.validationErrorBorder]}>
+                  <Ionicons name="create-outline" size={22} color="#8b95a1" />
+                  <TextInput
+                    style={[styles.formTextInput, styles.formTextArea]}
+                    placeholder="Describe the video type"
+                    placeholderTextColor="#a4abb4"
+                    value={videoEditOther}
+                    onChangeText={(value) => {
+                      setVideoEditOther(value);
+                      clearValidationError('videoEditOther');
+                    }}
+                    multiline
+                  />
+                </View>
+              )}
+              {requiresFinishedVideoLength && (
+                <>
+                  <Text style={styles.formLabel}>Length of Finished Video</Text>
+                  <Pressable
+                    style={[styles.formSelectRow, hasError('finishedVideoLength') && styles.validationErrorBorder]}
+                    onPress={() => setShowFinishedVideoLengthPicker((current) => !current)}
+                  >
+                    <Ionicons name="time-outline" size={22} color="#8b95a1" />
+                    <Text style={[styles.formSelectText, !finishedVideoLength && styles.formPlaceholderText]}>
+                      {formatFinishedVideoLength(finishedVideoLength)}
+                    </Text>
+                    <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+                  </Pressable>
+                  {showFinishedVideoLengthPicker && (
+                    <View style={styles.selectOptionList}>
+                      {finishedVideoLengths.map((length) => (
+                        <Pressable
+                          key={length.value}
+                          style={styles.selectOptionRow}
+                          onPress={() => {
+                            setFinishedVideoLength(length.value);
+                            setShowFinishedVideoLengthPicker(false);
+                            setFinishedVideoLengthOther('');
+                            clearValidationError('finishedVideoLength');
+                            clearValidationError('finishedVideoLengthOther');
+                          }}
+                        >
+                          <Text style={styles.selectOptionText}>{length.label}</Text>
+                          {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {finishedVideoLength === 'other' && (
+                    <IconTextInput
+                      error={hasError('finishedVideoLengthOther')}
+                      icon="create-outline"
+                      placeholder="Enter finished video length"
+                      value={finishedVideoLengthOther}
+                      onChangeText={(value) => {
+                        setFinishedVideoLengthOther(value);
+                        clearValidationError('finishedVideoLengthOther');
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          )}
+          {services.includes('other') && (
+            <TextInput
+              style={[styles.input, styles.noteInput, styles.modernTextArea, hasError('otherDescription') && styles.validationErrorBorder]}
+              placeholder="Describe the project"
+              value={otherDescription}
+              onChangeText={(value) => {
+                setOtherDescription(value);
+                clearValidationError('otherDescription');
+              }}
+              multiline
+            />
+          )}
+          <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('details') && styles.validationErrorBorder]}>
+            <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
+            <TextInput
+              style={[styles.formTextInput, styles.formTextArea]}
+              placeholder="Describe the project the best you can"
+              placeholderTextColor="#a4abb4"
+              value={details}
+              onChangeText={(value) => {
+                setDetails(value);
+                clearValidationError('details');
+              }}
+              multiline
+            />
+          </View>
+          <Pressable
+            style={styles.radioRow}
+            onPress={() => {
+              setIsRecurring((current) => !current);
+              if (isRecurring) {
+                setRecurrenceFrequency(null);
+                setRecurrenceOther('');
+                setRecurrenceEndDate(null);
+                setValidationErrors((errors) =>
+                  errors.filter((item) => !['recurrenceFrequency', 'recurrenceOther', 'recurrenceEndDate'].includes(item)),
+                );
+              }
+            }}
+          >
+            <Ionicons name={isRecurring ? 'radio-button-on' : 'ellipse-outline'} size={30} color="#0f766e" />
+            <View style={styles.flexOne}>
+              <Text style={styles.radioText}>Recurring shoot</Text>
+              <Text style={styles.radioSubText}>This is an ongoing or repeating project</Text>
+            </View>
+          </Pressable>
+          {isRecurring && (
+            <View style={styles.recurringBox}>
+              <Text style={styles.formLabel}>Frequency</Text>
+              <View style={[styles.serviceGrid, hasError('recurrenceFrequency') && styles.validationErrorGroup]}>
+                {recurrenceFrequencies.map((frequency) => {
+                  const active = recurrenceFrequency === frequency.value;
+                  return (
+                    <Pressable
+                      key={frequency.value}
+                      style={[styles.serviceButton, active && styles.activeServiceButton]}
+                      onPress={() => {
+                        setRecurrenceFrequency(frequency.value);
+                        clearValidationError('recurrenceFrequency');
+                        clearValidationError('recurrenceOther');
+                      }}
+                    >
+                      <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>
+                        {frequency.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {recurrenceFrequency === 'other' && (
+                <IconTextInput
+                  error={hasError('recurrenceOther')}
+                  icon="repeat-outline"
+                  placeholder="Custom recurrence"
+                  value={recurrenceOther}
+                  onChangeText={(value) => {
+                    setRecurrenceOther(value);
+                    clearValidationError('recurrenceOther');
+                  }}
+                />
+              )}
+              <Pressable
+                style={[styles.formSelectRow, hasError('recurrenceEndDate') && styles.validationErrorBorder]}
+                onPress={() => setShowRecurrenceEndPicker((current) => !current)}
+              >
+                <Ionicons name="calendar-clear-outline" size={22} color="#8b95a1" />
+                <Text style={[styles.formSelectText, !recurrenceEndDate && styles.formPlaceholderText]}>
+                  {recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
+                </Text>
+                <Ionicons name={showRecurrenceEndPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+              </Pressable>
+              {showRecurrenceEndPicker && (
+                <DateTimePicker
+                  value={recurrenceEndDate ?? requestedDate ?? tomorrow}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                  minimumDate={requestedDate ?? tomorrow}
+                  onChange={(_, date) => {
+                    if (Platform.OS !== 'ios') setShowRecurrenceEndPicker(false);
+                    if (date) {
+                      setRecurrenceEndDate(date);
+                      clearValidationError('recurrenceEndDate');
+                    }
+                  }}
+                />
+              )}
+            </View>
+          )}
+          <PrimaryButton
+            label={submitting ? 'Sending Request...' : 'Send Shoot Request'}
+            icon="paper-plane-outline"
+            loading={submitting}
+            disabled={submitting}
+            onPress={submit}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -2767,6 +2797,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
+  },
+  accordionHeader: {
+    minHeight: 52,
+    borderRadius: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accordionTitleWrap: {
+    flex: 1,
+  },
+  accordionTitle: {
+    color: '#17221d',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  accordionSubtitle: {
+    color: '#687076',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   muted: {
     color: '#687076',
