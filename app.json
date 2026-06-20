@@ -54,7 +54,8 @@
         {
           "locationWhenInUsePermission": "The Knoxville Drone Guy shares the admin phone location only with the assigned client while an active job is in progress."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "websiteUrl": "https://www.theknoxvilledroneguy.com"

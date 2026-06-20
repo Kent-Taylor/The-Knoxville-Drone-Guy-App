@@ -14,10 +14,50 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isValidClientProfile(userId) {
+      return isOwner(userId)
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.role == 'client';
+    }
+
+    function isValidShootRequestCreate() {
+      return signedIn()
+        && request.resource.data.keys().hasAll([
+          'clientId',
+          'clientName',
+          'requesterName',
+          'title',
+          'requestedWhen',
+          'requestedDate',
+          'projectAddress',
+          'homeBaseAddress',
+          'services',
+          'details',
+          'isRecurring',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.clientName is string
+        && request.resource.data.requesterName is string
+        && request.resource.data.title is string
+        && request.resource.data.requestedWhen is string
+        && request.resource.data.requestedDate is string
+        && request.resource.data.projectAddress is string
+        && request.resource.data.homeBaseAddress is string
+        && request.resource.data.services is list
+        && request.resource.data.services.size() > 0
+        && request.resource.data.details is string
+        && request.resource.data.isRecurring is bool
+        && request.resource.data.status == 'requested'
+        && request.resource.data.createdAt is number;
+    }
+
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
-      allow create: if isAdmin() || isOwner(userId);
-      allow update: if isAdmin() || isOwner(userId);
+      allow create: if isAdmin() || isValidClientProfile(userId);
+      allow update: if isAdmin() || (isValidClientProfile(userId) && resource.data.role == 'client');
       allow delete: if isAdmin();
     }
 
@@ -48,7 +88,7 @@ service cloud.firestore {
 
     match /shootRequests/{requestId} {
       allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
-      allow create: if signedIn() && request.resource.data.clientId == request.auth.uid;
+      allow create: if isValidShootRequestCreate();
       allow update, delete: if isAdmin();
     }
   }

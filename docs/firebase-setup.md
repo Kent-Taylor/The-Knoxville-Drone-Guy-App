@@ -6,7 +6,7 @@ This app runs in demo mode until Firebase values are added.
 
 Enable these Firebase services:
 
-- Authentication: email/password or email-link sign-in for invited clients.
+- Authentication: email/password sign-in for clients and admin. Do not store passwords in Firestore.
 - Firestore: users, chat threads, messages, jobs, updates, shoot requests, and live location.
 - Storage: chat attachments and job media updates.
 - Cloud Functions: invites, admin-only writes, push notification fanout, and location cleanup.
@@ -38,12 +38,20 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 
 ## Collections
 
-- `users/{uid}`: email, displayName, role, expoPushTokens.
+- `users/{uid}`: email, displayName, role, expoPushTokens, createdAt, updatedAt.
 - `chatThreads/{threadId}`: clientId, clientName, lastMessage, updatedAt.
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
 - `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
-- `shootRequests/{requestId}`: clientId, clientName, title, requestedWhen, projectAddress, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, services, details, status, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, projectAddress, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, services, otherDescription, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
+
+## Shoot Request Intake
+
+Clients create requests from the app after signing in. The app requires name or business name, project name, a future date, project address, project details, and at least one selected service. Same-day requests are blocked in the UI by setting the minimum calendar date to tomorrow.
+
+Address autocomplete is currently a local Knoxville placeholder list. If no suggestion matches, the app accepts the typed address. Production address validation should use a maps/geocoding provider before mileage pricing is finalized.
+
+Recurring shoots store `isRecurring`, `recurrenceFrequency`, optional `recurrenceOther`, and `recurrenceEndDate`. The `Other` service stores its required description in `otherDescription`.
 
 ## Location Rules
 

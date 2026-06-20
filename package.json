@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@react-native-community/datetimepicker": "8.4.4",
     "expo": "~54.0.34",
     "expo-device": "~8.0.10",
     "expo-image-picker": "~17.0.11",

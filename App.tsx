@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -21,7 +22,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { WebView } from 'react-native-webview';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
 import {
   addDoc,
   collection,
@@ -45,15 +46,29 @@ import {
   Job,
   JobStatus,
   JobUpdate,
+  RecurrenceFrequency,
   ShootRequest,
   ShootService,
   jobStatuses,
   locationVisibleStatuses,
+  recurrenceFrequencies,
   shootServices,
 } from './src/types';
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
 const HOME_BASE_ADDRESS = '742 Whitesburg Dr, Knoxville, TN 37918';
+const addressSuggestions = [
+  '742 Whitesburg Dr, Knoxville, TN 37918',
+  '1234 Keller Bend Rd, Knoxville, TN 37922',
+  'Market Square, Knoxville, TN 37902',
+  'Worlds Fair Park Dr, Knoxville, TN 37916',
+  'Neyland Dr, Knoxville, TN 37916',
+  'Gay St, Knoxville, TN 37902',
+  'Hardin Valley Rd, Knoxville, TN 37932',
+  'Kingston Pike, Knoxville, TN 37919',
+  'Chapman Hwy, Knoxville, TN 37920',
+  'Emory Rd, Powell, TN 37849',
+];
 const adminUser: AppUser = {
   uid: 'admin-demo',
   email: 'kent@theknoxvilledroneguy.com',
@@ -128,13 +143,16 @@ const demoShootRequest: ShootRequest = {
   id: 'request-demo-1',
   clientId: clientUser.uid,
   clientName: clientUser.displayName,
+  requesterName: clientUser.displayName,
   title: 'Lake house listing shoot',
   requestedWhen: 'Tomorrow afternoon',
+  requestedDate: new Date(now + 1000 * 60 * 60 * 24).toISOString(),
   projectAddress: '1234 Keller Bend Rd, Knoxville, TN 37922',
   homeBaseAddress: HOME_BASE_ADDRESS,
   routeDistanceStatus: 'not_checked',
-  services: ['drone_video', 'drone_photo', 'ground_photo'],
+  services: ['drone_video', 'drone_photo', 'ground_photo', 'edit_into_video'],
   details: 'Need exterior aerials, a few ground photos, and a short vertical reel if weather cooperates.',
+  isRecurring: false,
   status: 'requested',
   createdAt: now - 1000 * 60 * 7,
 };
@@ -157,6 +175,7 @@ const initialData: AppData = {
 };
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'account';
+type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
 
 const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'website', label: 'Website', icon: 'globe-outline' },
@@ -413,7 +432,7 @@ export default function App() {
     }));
   };
 
-  const submitShootRequest = async (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => {
+  const submitShootRequest = async (request: ShootRequestDraft) => {
     if (!user) return;
     const shootRequest: ShootRequest = {
       ...request,
@@ -733,7 +752,7 @@ function JobsScreen({
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
-  onSubmitShootRequest: (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => Promise<void>;
+  onSubmitShootRequest: (request: ShootRequestDraft) => Promise<void>;
   onUpdateStatus: (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => Promise<void>;
   onUpdateTitle: (job: Job, title: string) => Promise<void>;
   selectedJob?: Job;
@@ -789,7 +808,7 @@ function JobsScreen({
                 <View style={styles.requestHeader}>
                   <View style={styles.flexOne}>
                     <Text style={styles.requestTitle}>{request.title}</Text>
-                    <Text style={styles.muted}>{request.clientName}</Text>
+                    <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
                   </View>
                   <View style={styles.requestStatusPill}>
                     <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
@@ -798,6 +817,10 @@ function JobsScreen({
                 <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
                 <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
                 <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                {request.isRecurring && (
+                  <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
+                )}
+                {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
                 {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
                 <RouteDistancePanel projectAddress={request.projectAddress} routeDistanceMiles={request.routeDistanceMiles} />
                 <View style={styles.rowActions}>
@@ -935,14 +958,31 @@ function ShootRequestForm({
   onSubmit,
   user,
 }: {
-  onSubmit: (request: Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>) => Promise<void>;
+  onSubmit: (request: ShootRequestDraft) => Promise<void>;
   user: AppUser;
 }) {
+  const tomorrow = useMemo(() => startOfTomorrow(), []);
   const [title, setTitle] = useState('');
-  const [requestedWhen, setRequestedWhen] = useState('');
+  const [requesterName, setRequesterName] = useState(user.displayName);
+  const [requestedDate, setRequestedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [projectAddress, setProjectAddress] = useState('');
   const [details, setDetails] = useState('');
   const [services, setServices] = useState<ShootService[]>([]);
+  const [otherDescription, setOtherDescription] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | null>(null);
+  const [recurrenceOther, setRecurrenceOther] = useState('');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(null);
+  const [showRecurrenceEndPicker, setShowRecurrenceEndPicker] = useState(false);
+
+  const filteredAddresses = useMemo(() => {
+    const needle = projectAddress.trim().toLowerCase();
+    if (needle.length < 3) return [];
+    return addressSuggestions
+      .filter((address) => address.toLowerCase().includes(needle) && address !== projectAddress)
+      .slice(0, 4);
+  }, [projectAddress]);
 
   const toggleService = (service: ShootService) => {
     setServices((current) =>
@@ -951,30 +991,84 @@ function ShootRequestForm({
   };
 
   const submit = async () => {
-    if (!title.trim() || !requestedWhen.trim() || !projectAddress.trim() || services.length === 0) {
-      Alert.alert('More details needed', 'Add a project name, when, project address, and at least one shoot type.');
+    const selectedOther = services.includes('other');
+    const missingRequired =
+      !requesterName.trim() ||
+      !title.trim() ||
+      !requestedDate ||
+      !projectAddress.trim() ||
+      !details.trim() ||
+      services.length === 0 ||
+      (selectedOther && !otherDescription.trim()) ||
+      (isRecurring && (!recurrenceEndDate || !recurrenceFrequency)) ||
+      (isRecurring && recurrenceFrequency === 'other' && !recurrenceOther.trim());
+
+    if (missingRequired) {
+      Alert.alert('More details needed', 'Fill out every field and select at least one shoot option.');
       return;
     }
+
+    if (requestedDate < tomorrow) {
+      Alert.alert('Choose another date', 'Same-day project requests are disabled.');
+      return;
+    }
+
     await onSubmit({
+      requesterName: requesterName.trim(),
       title: title.trim(),
-      requestedWhen: requestedWhen.trim(),
+      requestedWhen: formatProjectDate(requestedDate),
+      requestedDate: requestedDate.toISOString(),
       projectAddress: projectAddress.trim(),
       services,
+      otherDescription: selectedOther ? otherDescription.trim() : undefined,
       details: details.trim(),
+      isRecurring,
+      recurrenceFrequency: isRecurring ? recurrenceFrequency ?? undefined : undefined,
+      recurrenceOther: isRecurring && recurrenceFrequency === 'other' ? recurrenceOther.trim() : undefined,
+      recurrenceEndDate: isRecurring && recurrenceEndDate ? recurrenceEndDate.toISOString() : undefined,
     });
     setTitle('');
-    setRequestedWhen('');
+    setRequesterName(user.displayName);
+    setRequestedDate(null);
     setProjectAddress('');
     setDetails('');
     setServices([]);
+    setOtherDescription('');
+    setIsRecurring(false);
+    setRecurrenceFrequency(null);
+    setRecurrenceOther('');
+    setRecurrenceEndDate(null);
     Alert.alert('Request sent', `${user.displayName}, your shoot request was sent.`);
   };
 
   return (
     <View style={styles.adminPanel}>
       <Text style={styles.smallTitle}>Request a Project Shoot</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Your name or business name"
+        value={requesterName}
+        onChangeText={setRequesterName}
+        textContentType="organizationName"
+      />
       <TextInput style={styles.input} placeholder="Project name" value={title} onChangeText={setTitle} />
-      <TextInput style={styles.input} placeholder="When do you need it?" value={requestedWhen} onChangeText={setRequestedWhen} />
+      <SecondaryButton
+        label={requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
+        icon="calendar-outline"
+        onPress={() => setShowDatePicker((current) => !current)}
+      />
+      {showDatePicker && (
+        <DateTimePicker
+          value={requestedDate ?? tomorrow}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+          minimumDate={tomorrow}
+          onChange={(_, date) => {
+            if (Platform.OS !== 'ios') setShowDatePicker(false);
+            if (date) setRequestedDate(date < tomorrow ? tomorrow : date);
+          }}
+        />
+      )}
       <TextInput
         style={styles.input}
         placeholder="Project address"
@@ -982,6 +1076,16 @@ function ShootRequestForm({
         onChangeText={setProjectAddress}
         textContentType="fullStreetAddress"
       />
+      {filteredAddresses.length > 0 && (
+        <View style={styles.suggestionBox}>
+          {filteredAddresses.map((address) => (
+            <Pressable key={address} style={styles.suggestionItem} onPress={() => setProjectAddress(address)}>
+              <Ionicons name="location-outline" size={16} color="#0f766e" />
+              <Text style={styles.suggestionText}>{address}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
       <Text style={styles.formLabel}>Check all that apply</Text>
       <View style={styles.statusGrid}>
         {shootServices.map((service) => {
@@ -997,6 +1101,15 @@ function ShootRequestForm({
           );
         })}
       </View>
+      {services.includes('other') && (
+        <TextInput
+          style={[styles.input, styles.noteInput]}
+          placeholder="Describe the project"
+          value={otherDescription}
+          onChangeText={setOtherDescription}
+          multiline
+        />
+      )}
       <TextInput
         style={[styles.input, styles.noteInput]}
         placeholder="Anything else I should know?"
@@ -1004,6 +1117,66 @@ function ShootRequestForm({
         onChangeText={setDetails}
         multiline
       />
+      <Pressable
+        style={styles.radioRow}
+        onPress={() => {
+          setIsRecurring((current) => !current);
+          if (isRecurring) {
+            setRecurrenceFrequency(null);
+            setRecurrenceOther('');
+            setRecurrenceEndDate(null);
+          }
+        }}
+      >
+        <Ionicons name={isRecurring ? 'radio-button-on' : 'radio-button-off'} size={20} color="#0f766e" />
+        <Text style={styles.radioText}>Recurring shoot</Text>
+      </Pressable>
+      {isRecurring && (
+        <View style={styles.recurringBox}>
+          <Text style={styles.formLabel}>Frequency</Text>
+          <View style={styles.statusGrid}>
+            {recurrenceFrequencies.map((frequency) => {
+              const active = recurrenceFrequency === frequency.value;
+              return (
+                <Pressable
+                  key={frequency.value}
+                  style={[styles.statusButton, active && styles.activeStatusButton]}
+                  onPress={() => setRecurrenceFrequency(frequency.value)}
+                >
+                  <Text style={[styles.statusButtonText, active && styles.activeStatusButtonText]}>
+                    {frequency.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {recurrenceFrequency === 'other' && (
+            <TextInput
+              style={styles.input}
+              placeholder="Custom recurrence"
+              value={recurrenceOther}
+              onChangeText={setRecurrenceOther}
+            />
+          )}
+          <SecondaryButton
+            label={recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
+            icon="calendar-clear-outline"
+            onPress={() => setShowRecurrenceEndPicker((current) => !current)}
+          />
+          {showRecurrenceEndPicker && (
+            <DateTimePicker
+              value={recurrenceEndDate ?? requestedDate ?? tomorrow}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+              minimumDate={requestedDate ?? tomorrow}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowRecurrenceEndPicker(false);
+                if (date) setRecurrenceEndDate(date);
+              }}
+            />
+          )}
+        </View>
+      )}
       <PrimaryButton label="Send Shoot Request" icon="send-outline" onPress={submit} />
     </View>
   );
@@ -1016,17 +1189,67 @@ function AccountScreen({
   user: AppUser | null;
   switchRole: (role: AppUser['role']) => void;
 }) {
+  const [mode, setMode] = useState<'sign_in' | 'sign_up'>('sign_in');
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
   const handleSignIn = async () => {
     if (!auth) return;
+    if (!email.trim() || !password) {
+      Alert.alert('Sign in failed', 'Enter your email and password.');
+      return;
+    }
     setBusy(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (error) {
-      Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Check your email and password.');
+      Alert.alert('Sign in failed', 'Check your email and password.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!auth || !db) return;
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = displayName.trim();
+    const passwordProblem = getPasswordProblem(password);
+
+    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+      Alert.alert('Sign up failed', 'Fill out your name, email, password, and confirmation.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      Alert.alert('Sign up failed', 'Enter a valid email address.');
+      return;
+    }
+    if (passwordProblem) {
+      Alert.alert('Password needs work', passwordProblem);
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Sign up failed', 'Passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const created = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      await updateProfile(created.user, { displayName: trimmedName });
+      await setDoc(doc(db, 'users', created.user.uid), {
+        email: trimmedEmail,
+        displayName: trimmedName,
+        role: 'client',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      setPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      Alert.alert('Sign up failed', 'This email may already be used, or the password was not accepted.');
     } finally {
       setBusy(false);
     }
@@ -1044,6 +1267,31 @@ function AccountScreen({
         <Text style={styles.muted}>{user?.email ?? 'Firebase invite sign-in will be enabled after configuration.'}</Text>
         {isFirebaseConfigured && (
           <View style={styles.signInBox}>
+            {!user && (
+              <View style={styles.authToggle}>
+                <Pressable
+                  style={[styles.authToggleButton, mode === 'sign_in' && styles.activeAuthToggleButton]}
+                  onPress={() => setMode('sign_in')}
+                >
+                  <Text style={[styles.authToggleText, mode === 'sign_in' && styles.activeAuthToggleText]}>Sign In</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.authToggleButton, mode === 'sign_up' && styles.activeAuthToggleButton]}
+                  onPress={() => setMode('sign_up')}
+                >
+                  <Text style={[styles.authToggleText, mode === 'sign_up' && styles.activeAuthToggleText]}>Sign Up</Text>
+                </Pressable>
+              </View>
+            )}
+            {!user && mode === 'sign_up' && (
+              <TextInput
+                style={styles.input}
+                placeholder="Name or business name"
+                value={displayName}
+                onChangeText={setDisplayName}
+                textContentType="name"
+              />
+            )}
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -1058,9 +1306,22 @@ function AccountScreen({
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              textContentType={mode === 'sign_up' ? 'newPassword' : 'password'}
             />
+            {!user && mode === 'sign_up' && (
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                textContentType="newPassword"
+              />
+            )}
             {user ? (
               <PrimaryButton label="Sign Out" icon="log-out-outline" onPress={handleSignOut} />
+            ) : mode === 'sign_up' ? (
+              <PrimaryButton label={busy ? 'Creating...' : 'Create Account'} icon="person-add-outline" onPress={handleSignUp} />
             ) : (
               <PrimaryButton label={busy ? 'Signing In...' : 'Sign In'} icon="log-in-outline" onPress={handleSignIn} />
             )}
@@ -1159,6 +1420,22 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
+function startOfTomorrow() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  return tomorrow;
+}
+
+function formatProjectDate(date: Date) {
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 function statusLabel(status: JobStatus) {
   return jobStatuses.find((item) => item.value === status)?.label ?? status;
 }
@@ -1169,10 +1446,27 @@ function formatServices(services: ShootService[]) {
     .join(', ');
 }
 
+function formatRecurrence(request: ShootRequest) {
+  const frequency =
+    request.recurrenceFrequency === 'other'
+      ? request.recurrenceOther
+      : recurrenceFrequencies.find((item) => item.value === request.recurrenceFrequency)?.label;
+  const endDate = request.recurrenceEndDate ? formatProjectDate(new Date(request.recurrenceEndDate)) : 'No end date';
+  return `${frequency ?? 'Recurring'} until ${endDate}`;
+}
+
 function requestStatusLabel(status: ShootRequest['status']) {
   if (status === 'accepted') return 'Accepted';
   if (status === 'needs_details') return 'Needs Details';
   return 'Requested';
+}
+
+function getPasswordProblem(password: string) {
+  if (password.length < 8) return 'Use at least 8 characters.';
+  if (!/[a-z]/.test(password)) return 'Use at least one lowercase letter.';
+  if (!/[A-Z]/.test(password)) return 'Use at least one uppercase letter.';
+  if (!/\d/.test(password)) return 'Use at least one number.';
+  return null;
 }
 
 function calculateRouteDistanceMiles() {
@@ -1611,6 +1905,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+  suggestionBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    minHeight: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#dce5df',
+  },
+  suggestionText: {
+    flex: 1,
+    color: '#17221d',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  radioRow: {
+    minHeight: 42,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f0f5f2',
+  },
+  radioText: {
+    color: '#17221d',
+    fontWeight: '800',
+  },
+  recurringBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#fbfdfc',
+  },
   distancePanel: {
     borderRadius: 8,
     borderWidth: 1,
@@ -1711,6 +2049,32 @@ const styles = StyleSheet.create({
   signInBox: {
     gap: 10,
     marginTop: 14,
+  },
+  authToggle: {
+    minHeight: 42,
+    borderRadius: 8,
+    padding: 4,
+    flexDirection: 'row',
+    gap: 4,
+    backgroundColor: '#f0f5f2',
+  },
+  authToggleButton: {
+    flex: 1,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeAuthToggleButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#dce5df',
+  },
+  authToggleText: {
+    color: '#687076',
+    fontWeight: '800',
+  },
+  activeAuthToggleText: {
+    color: '#0f766e',
   },
   primaryButton: {
     minHeight: 44,
