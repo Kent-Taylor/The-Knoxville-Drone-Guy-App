@@ -1224,7 +1224,7 @@ function ShootRequestForm({
         <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
         <TextInput
           style={[styles.formTextInput, styles.formTextArea]}
-          placeholder="Anything else I should know?"
+          placeholder="Describe the project the best you can"
           placeholderTextColor="#a4abb4"
           value={details}
           onChangeText={setDetails}
