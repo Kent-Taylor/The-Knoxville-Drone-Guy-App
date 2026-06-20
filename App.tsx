@@ -441,6 +441,35 @@ export default function App() {
     }));
   };
 
+  const editJobUpdate = async (
+    job: Job,
+    updateId: string,
+    changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>,
+  ) => {
+    const editedUpdates = job.updates
+      .map((update) => (update.id === updateId ? { ...update, ...changes } : update))
+      .sort((first, second) => second.createdAt - first.createdAt);
+    const currentStatus = editedUpdates[0]?.status ?? job.status;
+
+    if (isFirebaseConfigured && db) {
+      await updateDoc(doc(db, 'jobs', job.id, 'updates', updateId), changes);
+      await updateDoc(doc(db, 'jobs', job.id), { status: currentStatus });
+    }
+
+    setData((current) => ({
+      ...current,
+      jobs: current.jobs.map((item) =>
+        item.id === job.id
+          ? {
+              ...item,
+              status: currentStatus,
+              updates: editedUpdates,
+            }
+          : item,
+      ),
+    }));
+  };
+
   const submitShootRequest = async (request: ShootRequestDraft) => {
     if (!user) return;
     const route = await calculateDrivingRoute(HOME_BASE_ADDRESS, request.projectAddress);
@@ -565,6 +594,7 @@ export default function App() {
           onAcceptShootRequest={acceptShootRequest}
           onRequestShootDetails={requestShootDetails}
           onSubmitShootRequest={submitShootRequest}
+          onEditUpdate={editJobUpdate}
           onUpdateStatus={updateJobStatus}
           onUpdateTitle={updateJobTitle}
           selectedJob={selectedJob}
@@ -753,6 +783,7 @@ function JobsScreen({
   isAdmin,
   jobs,
   onAcceptShootRequest,
+  onEditUpdate,
   onRequestShootDetails,
   onSubmitShootRequest,
   onUpdateStatus,
@@ -765,6 +796,7 @@ function JobsScreen({
   isAdmin: boolean;
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
+  onEditUpdate: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
   onSubmitShootRequest: (request: ShootRequestDraft) => Promise<void>;
   onUpdateStatus: (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => Promise<void>;
@@ -962,16 +994,13 @@ function JobsScreen({
       <View style={styles.timeline}>
         <Text style={styles.smallTitle}>Progress updates</Text>
         {selectedJob.updates.map((update) => (
-          <View key={update.id} style={styles.timelineItem}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineBody}>
-              <Text style={styles.timelineTitle}>{statusLabel(update.status)}</Text>
-              <Text style={styles.timelineText}>{update.note}</Text>
-              <Text style={styles.timelineTime}>{new Date(update.createdAt).toLocaleString()}</Text>
-              {update.attachment?.type === 'image' && <Image source={{ uri: update.attachment.uri }} style={styles.updateImage} />}
-              {update.attachment?.type === 'video' && <Text style={styles.attachmentText}>Video attached: {update.attachment.name ?? 'clip'}</Text>}
-            </View>
-          </View>
+          <JobUpdateRow
+            key={update.id}
+            isAdmin={isAdmin}
+            job={selectedJob}
+            onSave={onEditUpdate}
+            update={update}
+          />
         ))}
       </View>
     </ScrollView>
@@ -1202,6 +1231,155 @@ function ShootRequestForm({
         </View>
       )}
       <PrimaryButton label="Send Shoot Request" icon="send-outline" onPress={submit} />
+    </View>
+  );
+}
+
+function JobUpdateRow({
+  isAdmin,
+  job,
+  onSave,
+  update,
+}: {
+  isAdmin: boolean;
+  job: Job;
+  onSave: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
+  update: JobUpdate;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<JobStatus>(update.status);
+  const [draftNote, setDraftNote] = useState(update.note);
+  const [draftDate, setDraftDate] = useState(new Date(update.createdAt));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (editing) return;
+    setDraftStatus(update.status);
+    setDraftNote(update.note);
+    setDraftDate(new Date(update.createdAt));
+  }, [editing, update.createdAt, update.note, update.status]);
+
+  const save = async () => {
+    if (!draftNote.trim()) {
+      Alert.alert('Update note needed', 'Add a note for this progress update.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave(job, update.id, {
+        status: draftStatus,
+        note: draftNote.trim(),
+        createdAt: draftDate.getTime(),
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancel = () => {
+    setDraftStatus(update.status);
+    setDraftNote(update.note);
+    setDraftDate(new Date(update.createdAt));
+    setEditing(false);
+  };
+
+  return (
+    <View style={styles.timelineItem}>
+      <View style={styles.timelineDot} />
+      <View style={styles.timelineBody}>
+        {editing ? (
+          <View style={styles.updateEditor}>
+            <Text style={styles.formLabel}>Status</Text>
+            <View style={styles.statusGrid}>
+              {jobStatuses.map((status) => {
+                const active = draftStatus === status.value;
+                return (
+                  <Pressable
+                    key={status.value}
+                    style={[styles.statusButton, active && styles.activeStatusButton]}
+                    onPress={() => setDraftStatus(status.value)}
+                  >
+                    <Text style={[styles.statusButtonText, active && styles.activeStatusButtonText]}>
+                      {status.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <TextInput
+              style={[styles.input, styles.noteInput]}
+              placeholder="Progress note"
+              value={draftNote}
+              onChangeText={setDraftNote}
+              multiline
+            />
+            <View style={styles.rowActions}>
+              <SecondaryButton
+                label={formatProjectDate(draftDate)}
+                icon="calendar-outline"
+                onPress={() => setShowDatePicker((current) => !current)}
+              />
+              <SecondaryButton
+                label={draftDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                icon="time-outline"
+                onPress={() => setShowTimePicker((current) => !current)}
+              />
+            </View>
+            {showDatePicker && (
+              <DateTimePicker
+                value={draftDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                onChange={(_, date) => {
+                  if (Platform.OS !== 'ios') setShowDatePicker(false);
+                  if (!date) return;
+                  const nextDate = new Date(draftDate);
+                  nextDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                  setDraftDate(nextDate);
+                }}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={draftDate}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, date) => {
+                  if (Platform.OS !== 'ios') setShowTimePicker(false);
+                  if (!date) return;
+                  const nextDate = new Date(draftDate);
+                  nextDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
+                  setDraftDate(nextDate);
+                }}
+              />
+            )}
+            <View style={styles.rowActions}>
+              <SecondaryButton label="Cancel" icon="close-outline" onPress={cancel} />
+              <PrimaryButton label={saving ? 'Saving...' : 'Save Update'} icon="save-outline" onPress={save} />
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.timelineTitleRow}>
+              <Text style={styles.timelineTitle}>{statusLabel(update.status)}</Text>
+              {isAdmin && (
+                <Pressable style={styles.timelineEditButton} onPress={() => setEditing(true)}>
+                  <Ionicons name="create-outline" size={17} color="#0f766e" />
+                  <Text style={styles.timelineEditText}>Edit</Text>
+                </Pressable>
+              )}
+            </View>
+            <Text style={styles.timelineText}>{update.note}</Text>
+            <Text style={styles.timelineTime}>{new Date(update.createdAt).toLocaleString()}</Text>
+            {update.attachment?.type === 'image' && <Image source={{ uri: update.attachment.uri }} style={styles.updateImage} />}
+            {update.attachment?.type === 'video' && <Text style={styles.attachmentText}>Video attached: {update.attachment.name ?? 'clip'}</Text>}
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -2185,8 +2363,29 @@ const styles = StyleSheet.create({
   timelineBody: {
     flex: 1,
   },
+  timelineTitleRow: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   timelineTitle: {
     color: '#17221d',
+    fontWeight: '800',
+  },
+  timelineEditButton: {
+    minHeight: 30,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#e3f5f1',
+  },
+  timelineEditText: {
+    color: '#0f766e',
+    fontSize: 12,
     fontWeight: '800',
   },
   timelineText: {
@@ -2203,6 +2402,9 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 8,
     marginTop: 8,
+  },
+  updateEditor: {
+    gap: 10,
   },
   accountCard: {
     borderRadius: 8,

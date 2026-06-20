@@ -59,6 +59,8 @@ Only the admin app writes live location. It starts at `on_my_way`, remains visib
 
 Do not store route history for v1. Store only the latest point and timestamp.
 
+Admins can edit job progress updates if a status was tapped by mistake or entered late. Editable fields are status, note, and timestamp. After an edit, the app sets the job's current status from the newest progress update by timestamp.
+
 ## Route Distance Placeholder
 
 The home base address is `742 Whitesburg Dr, Knoxville, TN 37918`. Route distance must mean driving distance, not straight-line distance.
