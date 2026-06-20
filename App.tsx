@@ -736,7 +736,11 @@ function ChatScreen({
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 68 : 0}
+    >
       {isAdmin && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selector}>
           {threads.map((thread) => (
@@ -2209,11 +2213,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   myMessage: {
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
     backgroundColor: '#d9f4ee',
   },
   theirMessage: {
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
@@ -2303,7 +2307,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 16,
     backgroundColor: '#ffffff',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#dce5df',
