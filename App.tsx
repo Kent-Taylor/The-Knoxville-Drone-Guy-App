@@ -947,7 +947,7 @@ function JobsScreen({
               description="Live admin phone location for this active job"
             />
           </MapView>
-          <Text style={styles.mapCaption}>Live location updated {new Date(selectedJob.liveLocation!.updatedAt).toLocaleTimeString()}.</Text>
+          <Text style={styles.mapCaption}>Live location updated {formatClockTime(new Date(selectedJob.liveLocation!.updatedAt))}.</Text>
         </View>
       ) : (
         <View style={styles.locationClosed}>
@@ -992,12 +992,13 @@ function JobsScreen({
         </View>
       )}
       <View style={styles.timeline}>
-        <Text style={styles.smallTitle}>Progress updates</Text>
-        {selectedJob.updates.map((update) => (
+        <Text style={styles.timelineHeading}>Progress updates</Text>
+        {selectedJob.updates.map((update, index) => (
           <JobUpdateRow
             key={update.id}
             isAdmin={isAdmin}
             job={selectedJob}
+            isLast={index === selectedJob.updates.length - 1}
             onSave={onEditUpdate}
             update={update}
           />
@@ -1237,11 +1238,13 @@ function ShootRequestForm({
 
 function JobUpdateRow({
   isAdmin,
+  isLast,
   job,
   onSave,
   update,
 }: {
   isAdmin: boolean;
+  isLast: boolean;
   job: Job;
   onSave: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   update: JobUpdate;
@@ -1289,7 +1292,10 @@ function JobUpdateRow({
 
   return (
     <View style={styles.timelineItem}>
-      <View style={styles.timelineDot} />
+      <View style={styles.timelineRail}>
+        <View style={styles.timelineDot} />
+        {!isLast && <View style={styles.timelineLine} />}
+      </View>
       <View style={styles.timelineBody}>
         {editing ? (
           <View style={styles.updateEditor}>
@@ -1324,7 +1330,7 @@ function JobUpdateRow({
                 onPress={() => setShowDatePicker((current) => !current)}
               />
               <SecondaryButton
-                label={draftDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                label={formatClockTime(draftDate)}
                 icon="time-outline"
                 onPress={() => setShowTimePicker((current) => !current)}
               />
@@ -1374,7 +1380,10 @@ function JobUpdateRow({
               )}
             </View>
             <Text style={styles.timelineText}>{update.note}</Text>
-            <Text style={styles.timelineTime}>{new Date(update.createdAt).toLocaleString()}</Text>
+            <View style={styles.timelineTimeRow}>
+              <Ionicons name="time-outline" size={18} color="#8b95a1" />
+              <Text style={styles.timelineTime}>{formatDateTime(new Date(update.createdAt))}</Text>
+            </View>
             {update.attachment?.type === 'image' && <Image source={{ uri: update.attachment.uri }} style={styles.updateImage} />}
             {update.attachment?.type === 'video' && <Text style={styles.attachmentText}>Video attached: {update.attachment.name ?? 'clip'}</Text>}
           </>
@@ -1688,6 +1697,17 @@ function formatProjectDate(date: Date) {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function formatClockTime(date: Date) {
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatDateTime(date: Date) {
+  return `${date.toLocaleDateString()} ${formatClockTime(date)}`;
 }
 
 function statusLabel(status: JobStatus) {
@@ -2342,36 +2362,56 @@ const styles = StyleSheet.create({
   },
   timeline: {
     marginHorizontal: 14,
-    padding: 14,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 8,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
   },
+  timelineHeading: {
+    color: '#101820',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 18,
+  },
   timelineItem: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
+    gap: 16,
+    minHeight: 118,
+  },
+  timelineRail: {
+    width: 18,
+    alignItems: 'center',
   },
   timelineDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#0f766e',
-    marginTop: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#0f9488',
+    marginTop: 7,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 8,
+    backgroundColor: '#e0e6e9',
   },
   timelineBody: {
     flex: 1,
+    paddingBottom: 22,
   },
   timelineTitleRow: {
-    minHeight: 30,
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
   },
   timelineTitle: {
-    color: '#17221d',
+    color: '#101820',
+    fontSize: 20,
     fontWeight: '800',
   },
   timelineEditButton: {
@@ -2389,14 +2429,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   timelineText: {
-    color: '#405048',
-    marginTop: 3,
-    lineHeight: 20,
+    color: '#59616b',
+    marginTop: 8,
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  timelineTimeRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
   },
   timelineTime: {
-    color: '#687076',
-    fontSize: 12,
-    marginTop: 4,
+    color: '#7c8590',
+    fontSize: 15,
   },
   updateImage: {
     height: 160,
