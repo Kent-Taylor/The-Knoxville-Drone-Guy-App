@@ -56,12 +56,18 @@ export type LiveLocation = {
   updatedAt: number;
 };
 
+export type RouteDistanceStatus = 'not_checked' | 'checking' | 'ready' | 'failed';
+
 export type Job = {
   id: string;
   clientId: string;
   clientName: string;
   title: string;
   address: string;
+  homeBaseAddress?: string;
+  routeDistanceMiles?: number;
+  routeDistanceStatus?: RouteDistanceStatus;
+  routeDistanceUpdatedAt?: number;
   status: JobStatus;
   scheduledAt: number;
   updates: JobUpdate[];
@@ -84,7 +90,11 @@ export type ShootRequest = {
   clientName: string;
   title: string;
   requestedWhen: string;
-  location: string;
+  projectAddress: string;
+  homeBaseAddress?: string;
+  routeDistanceMiles?: number;
+  routeDistanceStatus?: RouteDistanceStatus;
+  routeDistanceUpdatedAt?: number;
   services: ShootService[];
   details: string;
   status: ShootRequestStatus;

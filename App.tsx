@@ -53,6 +53,7 @@ import {
 } from './src/types';
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
+const HOME_BASE_ADDRESS = '742 Whitesburg Dr, Knoxville, TN 37918';
 const adminUser: AppUser = {
   uid: 'admin-demo',
   email: 'kent@theknoxvilledroneguy.com',
@@ -82,6 +83,8 @@ const demoJob: Job = {
   clientName: clientUser.displayName,
   title: 'Residential drone photo and video shoot',
   address: 'Knoxville, TN',
+  homeBaseAddress: HOME_BASE_ADDRESS,
+  routeDistanceStatus: 'not_checked',
   status: 'scheduled',
   scheduledAt: now + 1000 * 60 * 60 * 24,
   liveLocation: {
@@ -106,6 +109,8 @@ const demoSecondJob: Job = {
   clientName: clientUser.displayName,
   title: 'Commercial property overview',
   address: 'West Knoxville, TN',
+  homeBaseAddress: HOME_BASE_ADDRESS,
+  routeDistanceStatus: 'not_checked',
   status: 'editing_media',
   scheduledAt: now + 1000 * 60 * 60 * 5,
   updates: [
@@ -125,7 +130,9 @@ const demoShootRequest: ShootRequest = {
   clientName: clientUser.displayName,
   title: 'Lake house listing shoot',
   requestedWhen: 'Tomorrow afternoon',
-  location: 'Fort Loudoun Lake, Knoxville, TN',
+  projectAddress: '1234 Keller Bend Rd, Knoxville, TN 37922',
+  homeBaseAddress: HOME_BASE_ADDRESS,
+  routeDistanceStatus: 'not_checked',
   services: ['drone_video', 'drone_photo', 'ground_photo'],
   details: 'Need exterior aerials, a few ground photos, and a short vertical reel if weather cooperates.',
   status: 'requested',
@@ -413,6 +420,8 @@ export default function App() {
       id: `request-${Date.now()}`,
       clientId: user.uid,
       clientName: user.displayName,
+      homeBaseAddress: HOME_BASE_ADDRESS,
+      routeDistanceStatus: 'not_checked',
       status: 'requested',
       createdAt: Date.now(),
     };
@@ -433,7 +442,11 @@ export default function App() {
       clientId: request.clientId,
       clientName: request.clientName,
       title: request.title,
-      address: request.location,
+      address: request.projectAddress,
+      homeBaseAddress: request.homeBaseAddress ?? HOME_BASE_ADDRESS,
+      routeDistanceMiles: request.routeDistanceMiles,
+      routeDistanceStatus: request.routeDistanceStatus ?? 'not_checked',
+      routeDistanceUpdatedAt: request.routeDistanceUpdatedAt,
       status: 'scheduled',
       scheduledAt: Date.now(),
       updates: [
@@ -783,9 +796,10 @@ function JobsScreen({
                   </View>
                 </View>
                 <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
-                <Text style={styles.timelineText}>Where: {request.location}</Text>
+                <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
                 <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
                 {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                <RouteDistancePanel projectAddress={request.projectAddress} routeDistanceMiles={request.routeDistanceMiles} />
                 <View style={styles.rowActions}>
                   <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
                   <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
@@ -822,6 +836,12 @@ function JobsScreen({
           <Text style={styles.statusText}>{statusLabel(selectedJob.status)}</Text>
         </View>
       </View>
+      {isAdmin && (
+        <View style={styles.adminPanel}>
+          <Text style={styles.smallTitle}>Route Distance</Text>
+          <RouteDistancePanel projectAddress={selectedJob.address} routeDistanceMiles={selectedJob.routeDistanceMiles} />
+        </View>
+      )}
       {showMap ? (
         <View style={styles.mapWrap}>
           <MapView
@@ -920,7 +940,7 @@ function ShootRequestForm({
 }) {
   const [title, setTitle] = useState('');
   const [requestedWhen, setRequestedWhen] = useState('');
-  const [location, setLocation] = useState('');
+  const [projectAddress, setProjectAddress] = useState('');
   const [details, setDetails] = useState('');
   const [services, setServices] = useState<ShootService[]>([]);
 
@@ -931,20 +951,20 @@ function ShootRequestForm({
   };
 
   const submit = async () => {
-    if (!title.trim() || !requestedWhen.trim() || !location.trim() || services.length === 0) {
-      Alert.alert('More details needed', 'Add a project name, when, where, and at least one shoot type.');
+    if (!title.trim() || !requestedWhen.trim() || !projectAddress.trim() || services.length === 0) {
+      Alert.alert('More details needed', 'Add a project name, when, project address, and at least one shoot type.');
       return;
     }
     await onSubmit({
       title: title.trim(),
       requestedWhen: requestedWhen.trim(),
-      location: location.trim(),
+      projectAddress: projectAddress.trim(),
       services,
       details: details.trim(),
     });
     setTitle('');
     setRequestedWhen('');
-    setLocation('');
+    setProjectAddress('');
     setDetails('');
     setServices([]);
     Alert.alert('Request sent', `${user.displayName}, your shoot request was sent.`);
@@ -955,7 +975,13 @@ function ShootRequestForm({
       <Text style={styles.smallTitle}>Request a Project Shoot</Text>
       <TextInput style={styles.input} placeholder="Project name" value={title} onChangeText={setTitle} />
       <TextInput style={styles.input} placeholder="When do you need it?" value={requestedWhen} onChangeText={setRequestedWhen} />
-      <TextInput style={styles.input} placeholder="Where is the shoot?" value={location} onChangeText={setLocation} />
+      <TextInput
+        style={styles.input}
+        placeholder="Project address"
+        value={projectAddress}
+        onChangeText={setProjectAddress}
+        textContentType="fullStreetAddress"
+      />
       <Text style={styles.formLabel}>Check all that apply</Text>
       <View style={styles.statusGrid}>
         {shootServices.map((service) => {
@@ -1062,6 +1088,31 @@ function AccountScreen({
   );
 }
 
+function RouteDistancePanel({
+  projectAddress,
+  routeDistanceMiles,
+}: {
+  projectAddress: string;
+  routeDistanceMiles?: number;
+}) {
+  return (
+    <View style={styles.distancePanel}>
+      <View style={styles.distanceTextWrap}>
+        <Text style={styles.formLabel}>Driving route from home base</Text>
+        <Text style={styles.distanceValue}>
+          {typeof routeDistanceMiles === 'number' ? `${routeDistanceMiles.toFixed(1)} miles` : 'Not calculated yet'}
+        </Text>
+        <Text style={styles.muted}>Testing placeholder: opens Apple Maps to show the real driving route distance.</Text>
+      </View>
+      <SecondaryButton
+        label="Check Distance"
+        icon="map-outline"
+        onPress={() => openAppleMapsRoute(projectAddress)}
+      />
+    </View>
+  );
+}
+
 function PrimaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   return (
     <Pressable style={styles.primaryButton} onPress={onPress}>
@@ -1122,6 +1173,18 @@ function requestStatusLabel(status: ShootRequest['status']) {
   if (status === 'accepted') return 'Accepted';
   if (status === 'needs_details') return 'Needs Details';
   return 'Requested';
+}
+
+function calculateRouteDistanceMiles() {
+  // Placeholder only. Replace with a server-side routing API; do not use straight-line GPS distance.
+  return null;
+}
+
+function openAppleMapsRoute(projectAddress: string) {
+  calculateRouteDistanceMiles();
+  const source = encodeURIComponent(HOME_BASE_ADDRESS);
+  const destination = encodeURIComponent(projectAddress);
+  Linking.openURL(`http://maps.apple.com/?saddr=${source}&daddr=${destination}&dirflg=d`);
 }
 
 function assetToAttachment(asset: ImagePicker.ImagePickerAsset): Attachment {
@@ -1546,6 +1609,22 @@ const styles = StyleSheet.create({
   formLabel: {
     color: '#405048',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  distancePanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#ffffff',
+  },
+  distanceTextWrap: {
+    gap: 3,
+  },
+  distanceValue: {
+    color: '#17221d',
+    fontSize: 16,
     fontWeight: '800',
   },
   statusGrid: {

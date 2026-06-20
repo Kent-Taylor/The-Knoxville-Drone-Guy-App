@@ -41,15 +41,21 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 - `users/{uid}`: email, displayName, role, expoPushTokens.
 - `chatThreads/{threadId}`: clientId, clientName, lastMessage, updatedAt.
 - `chatThreads/{threadId}/messages/{messageId}`: senderId, senderName, body, attachment, createdAt.
-- `jobs/{jobId}`: clientId, clientName, title, address, status, scheduledAt, liveLocation.
+- `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
-- `shootRequests/{requestId}`: clientId, clientName, title, requestedWhen, location, services, details, status, createdAt.
+- `shootRequests/{requestId}`: clientId, clientName, title, requestedWhen, projectAddress, homeBaseAddress, routeDistanceMiles, routeDistanceStatus, services, details, status, createdAt.
 
 ## Location Rules
 
 Only the admin app writes live location. It starts at `on_my_way`, remains visible through `arrived` and `shoot_started`, and is removed at `shoot_complete` or `job_complete`.
 
 Do not store route history for v1. Store only the latest point and timestamp.
+
+## Route Distance Placeholder
+
+The home base address is `742 Whitesburg Dr, Knoxville, TN 37918`. Route distance must mean driving distance, not straight-line distance.
+
+For v1 testing, the admin app opens Apple Maps directions from the home base to the project address. Future production mileage should be calculated in a Cloud Function with a true routing API, then stored in `routeDistanceMiles`. Pricing should remain separate until distance rates are finalized.
 
 ## Website Chat
 
