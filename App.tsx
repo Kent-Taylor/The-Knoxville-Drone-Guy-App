@@ -942,8 +942,8 @@ function JobsScreen({
   const [note, setNote] = useState('');
   const [draftTitle, setDraftTitle] = useState(selectedJob?.title ?? '');
   const [pendingMedia, setPendingMedia] = useState<Attachment | null>(null);
-  const [projectsExpanded, setProjectsExpanded] = useState(true);
-  const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
     setDraftTitle(selectedJob?.title ?? '');
@@ -1256,7 +1256,7 @@ function ShootRequestForm({
   const [showFinishedVideoLengthPicker, setShowFinishedVideoLengthPicker] = useState(false);
   const [finishedVideoLengthOther, setFinishedVideoLengthOther] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [requestExpanded, setRequestExpanded] = useState(true);
+  const [requestExpanded, setRequestExpanded] = useState(false);
 
   const filteredAddresses = useMemo(() => {
     const needle = projectAddress.trim().toLowerCase();
