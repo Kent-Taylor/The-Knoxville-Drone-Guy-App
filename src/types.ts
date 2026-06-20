@@ -83,6 +83,7 @@ export type ShootService =
   | 'ground_photo'
   | 'edit_photos'
   | 'edit_into_video'
+  | '360_tour'
   | 'construction'
   | 'actors'
   | 'other';
@@ -147,6 +148,7 @@ export const shootServices: { value: ShootService; label: string }[] = [
   { value: 'ground_photo', label: 'Ground Photo' },
   { value: 'edit_photos', label: 'Edit My Photos' },
   { value: 'edit_into_video', label: 'Edit Into a Video' },
+  { value: '360_tour', label: '360° Tour' },
   { value: 'construction', label: 'Construction' },
   { value: 'actors', label: 'Actors' },
   { value: 'other', label: 'Other' },

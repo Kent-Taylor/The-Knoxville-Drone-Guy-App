@@ -1195,7 +1195,7 @@ function ShootRequestForm({
           ))}
         </View>
       )}
-      <Text style={styles.formLabel}>Check all that apply</Text>
+      <Text style={styles.formLabel}>Project Scope</Text>
       <View style={styles.serviceGrid}>
         {shootServices.map((service) => {
           const active = services.includes(service.value);
@@ -1880,6 +1880,7 @@ function serviceIcon(service: ShootService): keyof typeof Ionicons.glyphMap {
     ground_photo: 'image-outline',
     edit_photos: 'options-outline',
     edit_into_video: 'film-outline',
+    '360_tour': 'scan-outline',
     construction: 'construct-outline',
     actors: 'person-outline',
     other: 'ellipsis-horizontal-circle-outline',
