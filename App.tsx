@@ -1721,11 +1721,11 @@ function MediaAttachmentButton({ attachment, onPress }: { attachment: Attachment
 
 function MediaViewer({ attachment, onClose }: { attachment: Attachment | null; onClose: () => void }) {
   return (
-    <Modal visible={!!attachment} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.mediaViewerBackdrop}>
+    <Modal visible={!!attachment} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <SafeAreaView style={styles.mediaViewerBackdrop}>
         <View style={styles.mediaViewerHeader}>
           <Text style={styles.mediaViewerTitle}>{attachment?.type === 'video' ? 'Video' : 'Photo'}</Text>
-          <Pressable style={styles.mediaViewerClose} onPress={onClose}>
+          <Pressable style={styles.mediaViewerClose} hitSlop={18} onPress={onClose}>
             <Ionicons name="close" size={24} color="#ffffff" />
           </Pressable>
         </View>
@@ -1735,7 +1735,7 @@ function MediaViewer({ attachment, onClose }: { attachment: Attachment | null; o
           )}
           {attachment?.type === 'video' && <FullscreenVideo uri={attachment.uri} />}
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -2261,12 +2261,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#050708',
   },
   mediaViewerHeader: {
-    minHeight: 64,
+    minHeight: 68,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 20,
+    elevation: 20,
   },
   mediaViewerTitle: {
     color: '#ffffff',
@@ -2274,18 +2276,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   mediaViewerClose: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   mediaViewerBody: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 12,
+    zIndex: 1,
   },
   mediaViewerImage: {
     width: '100%',
