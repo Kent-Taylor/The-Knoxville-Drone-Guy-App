@@ -818,9 +818,11 @@ function JobsScreen({
 }) {
   const [note, setNote] = useState('');
   const [draftTitle, setDraftTitle] = useState(selectedJob?.title ?? '');
+  const [pendingMedia, setPendingMedia] = useState<Attachment | null>(null);
 
   useEffect(() => {
     setDraftTitle(selectedJob?.title ?? '');
+    setPendingMedia(null);
   }, [selectedJob?.id, selectedJob?.title]);
 
   if (!selectedJob) {
@@ -845,22 +847,15 @@ function JobsScreen({
       quality: 0.8,
     });
     if (!result.canceled) {
-      const attachment = assetToAttachment(result.assets[0]);
-      Alert.alert(
-        'Post media update?',
-        `Add this ${attachment.type} to the job progress updates?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Post',
-            onPress: () => {
-              onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', attachment);
-              setNote('');
-            },
-          },
-        ],
-      );
+      setPendingMedia(assetToAttachment(result.assets[0]));
     }
+  };
+
+  const postPendingMediaUpdate = () => {
+    if (!pendingMedia) return;
+    onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', pendingMedia);
+    setPendingMedia(null);
+    setNote('');
   };
 
   return (
@@ -1012,6 +1007,20 @@ function JobsScreen({
             ))}
           </View>
           <PrimaryButton label="Attach Media Update" icon="cloud-upload-outline" onPress={addMediaUpdate} />
+          {pendingMedia && (
+            <View style={styles.pendingMediaPanel}>
+              <View style={styles.pendingMediaInfo}>
+                <Ionicons name={pendingMedia.type === 'video' ? 'videocam-outline' : 'image-outline'} size={20} color="#0f766e" />
+                <Text style={styles.pendingMediaText}>
+                  {pendingMedia.type === 'video' ? 'Video ready to post' : 'Photo ready to post'}
+                </Text>
+              </View>
+              <View style={styles.rowActions}>
+                <SecondaryButton label="Remove" icon="trash-outline" onPress={() => setPendingMedia(null)} />
+                <PrimaryButton label="Post" icon="send-outline" onPress={postPendingMediaUpdate} />
+              </View>
+            </View>
+          )}
         </View>
       )}
       <View style={styles.timeline}>
@@ -2412,6 +2421,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
+  },
+  pendingMediaPanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e1e8e8',
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#f7fbfb',
+  },
+  pendingMediaInfo: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pendingMediaText: {
+    color: '#17221d',
+    fontSize: 14,
+    fontWeight: '800',
   },
   flexOne: {
     flex: 1,
