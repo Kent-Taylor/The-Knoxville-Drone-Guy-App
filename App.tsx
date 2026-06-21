@@ -1296,6 +1296,7 @@ function JobsScreen({
 
   const activeJobs = jobs.filter((job) => job.status !== 'job_complete');
   const historyJobs = jobs.filter((job) => job.status === 'job_complete');
+  const openShootRequests = shootRequests.filter((request) => request.status !== 'accepted');
 
   const addMediaUpdate = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1428,7 +1429,7 @@ function JobsScreen({
     >
       {isAdmin && <AdminCreateProjectForm clients={clients} onSubmit={onCreateAdminProject} />}
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
-      {(isAdmin || shootRequests.length > 0) && (
+      {(isAdmin || openShootRequests.length > 0) && (
         <View style={styles.adminPanel}>
           <Pressable
             style={styles.accordionHeader}
@@ -1449,26 +1450,23 @@ function JobsScreen({
               </Text>
             </View>
             <View style={styles.historyCountPill}>
-              <Text style={styles.historyCountText}>{shootRequests.length}</Text>
+              <Text style={styles.historyCountText}>{openShootRequests.length}</Text>
             </View>
             <Ionicons name={requestsExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
           </Pressable>
           {requestsExpanded && (
-            shootRequests.length === 0 ? (
+            openShootRequests.length === 0 ? (
               <Text style={styles.muted}>New client requests will appear here.</Text>
             ) : (
-              shootRequests.map((request) => {
-                const accepted = request.status === 'accepted';
+              openShootRequests.map((request) => {
                 const editing = editingRequestId === request.id;
                 const expanded = expandedRequestId === request.id || editing;
-                const canEdit = isAdmin || request.status !== 'accepted';
                 const requestColors = shootRequestStatusColors(request.status);
                 return (
                   <View
                     key={request.id}
                     style={[
                       styles.requestCard,
-                      accepted && styles.acceptedRequestCard,
                       focusedRequestId === request.id && styles.focusedRequestCard,
                     ]}
                   >
@@ -1525,33 +1523,29 @@ function JobsScreen({
                         </>
                       ) : (
                         <>
-                          {!accepted && (
-                            <>
-                              <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
-                              <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
-                              <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
-                              {!!request.videoEditFormat && (
-                                <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
-                              )}
-                              {request.isRecurring && (
-                                <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
-                              )}
-                              {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
-                              {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
-                              <RouteDistancePanel
-                                projectAddress={request.projectAddress}
-                                routeDistanceMiles={request.routeDistanceMiles}
-                                routeTravelTimeMinutes={request.routeTravelTimeMinutes}
-                                routeDistanceStatus={request.routeDistanceStatus}
-                              />
-                            </>
+                          <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
+                          <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
+                          <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                          {!!request.videoEditFormat && (
+                            <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
                           )}
+                          {request.isRecurring && (
+                            <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
+                          )}
+                          {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
+                          {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                          <RouteDistancePanel
+                            projectAddress={request.projectAddress}
+                            routeDistanceMiles={request.routeDistanceMiles}
+                            routeTravelTimeMinutes={request.routeTravelTimeMinutes}
+                            routeDistanceStatus={request.routeDistanceStatus}
+                          />
                           <View style={styles.rowActions}>
                             {isAdmin && (
                               <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
                             )}
-                            {canEdit && <SecondaryButton label="Edit" icon="create-outline" onPress={() => startEditingRequest(request)} />}
-                            {isAdmin && !accepted && (
+                            <SecondaryButton label="Edit" icon="create-outline" onPress={() => startEditingRequest(request)} />
+                            {isAdmin && (
                               <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
                             )}
                           </View>
