@@ -270,7 +270,7 @@ export default function App() {
   const actionNeededRequests = useMemo(() => {
     if (!user) return [];
     return visibleShootRequests.filter((request) =>
-      isAdmin ? request.status === 'requested' : request.status === 'needs_details',
+      isAdmin ? request.status === 'requested' : request.status === 'accepted' || request.status === 'needs_details',
     );
   }, [isAdmin, user, visibleShootRequests]);
   const notificationBadgeCount = actionNeededRequests.length;
@@ -446,6 +446,7 @@ export default function App() {
           : thread,
       ),
     }));
+    scheduleLocalNotification('New chat message', `${message.senderName}: ${message.body}`);
   };
 
   const updateJobStatus = async (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => {
@@ -986,11 +987,15 @@ function NotificationsScreen({
             {pendingRequests.map((request) => (
               <Pressable key={request.id} style={styles.notificationCard} onPress={onOpenProjects}>
                 <View style={styles.notificationIconWrap}>
-                  <Ionicons name={isAdmin ? 'briefcase-outline' : 'information-circle-outline'} size={20} color="#0f766e" />
+                  <Ionicons
+                    name={isAdmin ? 'briefcase-outline' : request.status === 'accepted' ? 'checkmark-circle-outline' : 'information-circle-outline'}
+                    size={20}
+                    color="#0f766e"
+                  />
                 </View>
                 <View style={styles.flexOne}>
                   <Text style={styles.notificationTitle}>
-                    {isAdmin ? 'New Project Request' : 'Project Needs Details'}
+                    {isAdmin ? 'New Project Request' : request.status === 'accepted' ? 'Project Accepted' : 'Project Needs Details'}
                   </Text>
                   <Text style={styles.muted}>
                     {request.title} · {request.requesterName || request.clientName || user.displayName}
