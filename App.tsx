@@ -1237,6 +1237,7 @@ function JobsScreen({
   const renderProjectCard = (job: Job, isHistory = false) => {
     const selected = selectedJob.id === job.id;
     const showMap = job.liveLocation && locationVisibleStatuses.includes(job.status);
+    const statusColors = jobStatusColors(job.status);
     return (
       <View
         key={job.id}
@@ -1247,8 +1248,8 @@ function JobsScreen({
             <Text style={styles.jobListTitle}>{job.title}</Text>
             <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
           </View>
-          <View style={styles.statusPillSmall}>
-            <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+          <View style={[styles.statusPillSmall, { backgroundColor: statusColors.backgroundColor }]}>
+            <Text style={[styles.statusTextSmall, { color: statusColors.color }]}>{statusLabel(job.status)}</Text>
           </View>
           <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
         </Pressable>
@@ -1329,6 +1330,7 @@ function JobsScreen({
               const accepted = request.status === 'accepted';
               const editing = editingRequestId === request.id;
               const canEdit = isAdmin || request.status !== 'accepted';
+              const requestColors = shootRequestStatusColors(request.status);
               return (
                 <View
                   key={request.id}
@@ -1343,8 +1345,10 @@ function JobsScreen({
                       <Text style={styles.requestTitle}>{request.title}</Text>
                       <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
                     </View>
-                    <View style={[styles.requestStatusPill, accepted && styles.acceptedRequestPill]}>
-                      <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
+                    <View style={[styles.requestStatusPill, { backgroundColor: requestColors.backgroundColor }]}>
+                      <Text style={[styles.requestStatusText, { color: requestColors.color }]}>
+                        {requestStatusLabel(request.status)}
+                      </Text>
                     </View>
                   </View>
                   {editing ? (
@@ -2754,6 +2758,20 @@ function statusLabel(status: JobStatus) {
   return jobStatuses.find((item) => item.value === status)?.label ?? status;
 }
 
+function jobStatusColors(status: JobStatus) {
+  const colors: Record<JobStatus, { backgroundColor: string; color: string }> = {
+    scheduled: { backgroundColor: '#f5efe2', color: '#5f4b26' },
+    on_my_way: { backgroundColor: '#d7f1ef', color: '#0f615b' },
+    arrived: { backgroundColor: '#dff3ee', color: '#126337' },
+    shoot_started: { backgroundColor: '#dceeff', color: '#164f7a' },
+    shoot_complete: { backgroundColor: '#e5eaf2', color: '#17324d' },
+    editing_media: { backgroundColor: '#eadff7', color: '#5b2a7a' },
+    media_delivered: { backgroundColor: '#dff3ee', color: '#126337' },
+    job_complete: { backgroundColor: '#dff3ee', color: '#126337' },
+  };
+  return colors[status];
+}
+
 function formatServices(services: ShootService[]) {
   return services
     .map((service) => shootServices.find((item) => item.value === service)?.label ?? service)
@@ -2813,6 +2831,15 @@ function requestStatusLabel(status: ShootRequest['status']) {
   if (status === 'accepted') return 'Accepted';
   if (status === 'needs_details') return 'Needs Details';
   return 'Requested';
+}
+
+function shootRequestStatusColors(status: ShootRequest['status']) {
+  const colors: Record<ShootRequest['status'], { backgroundColor: string; color: string }> = {
+    requested: { backgroundColor: '#ffe7c2', color: '#8a4a00' },
+    accepted: { backgroundColor: '#dff3ee', color: '#126337' },
+    needs_details: { backgroundColor: '#ffe1df', color: '#9b1c1c' },
+  };
+  return colors[status];
 }
 
 function getPasswordProblem(password: string) {
@@ -3672,13 +3699,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    backgroundColor: '#e3f5f1',
-  },
-  acceptedRequestPill: {
-    backgroundColor: '#dff3ee',
   },
   requestStatusText: {
-    color: '#0f766e',
     fontSize: 11,
     fontWeight: '800',
   },
