@@ -961,7 +961,6 @@ function JobsScreen({
 
   const activeJobs = jobs.filter((job) => job.status !== 'job_complete');
   const historyJobs = jobs.filter((job) => job.status === 'job_complete');
-  const showMap = selectedJob.liveLocation && locationVisibleStatuses.includes(selectedJob.status);
 
   const addMediaUpdate = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -987,6 +986,7 @@ function JobsScreen({
 
   const renderProjectCard = (job: Job, isHistory = false) => {
     const selected = selectedJob.id === job.id;
+    const showMap = job.liveLocation && locationVisibleStatuses.includes(job.status);
     return (
       <View
         key={job.id}
@@ -1016,6 +1016,43 @@ function JobsScreen({
                 update={update}
               />
             ))}
+            <View style={styles.projectMapSection}>
+              <Text style={styles.projectMapHeading}>Production Crew Live</Text>
+              {showMap ? (
+                <View style={styles.projectMapWrap}>
+                  <MapView
+                    style={styles.map}
+                    initialRegion={{
+                      latitude: job.liveLocation!.latitude,
+                      longitude: job.liveLocation!.longitude,
+                      latitudeDelta: 0.04,
+                      longitudeDelta: 0.04,
+                    }}
+                    region={{
+                      latitude: job.liveLocation!.latitude,
+                      longitude: job.liveLocation!.longitude,
+                      latitudeDelta: 0.04,
+                      longitudeDelta: 0.04,
+                    }}
+                  >
+                    <Marker
+                      coordinate={{
+                        latitude: job.liveLocation!.latitude,
+                        longitude: job.liveLocation!.longitude,
+                      }}
+                      title="Production Crew Live"
+                      description="Live production crew location for this active project"
+                    />
+                  </MapView>
+                  <Text style={styles.mapCaption}>Live location updated {formatClockTime(new Date(job.liveLocation!.updatedAt))}.</Text>
+                </View>
+              ) : (
+                <View style={styles.projectLocationClosed}>
+                  <Ionicons name="location-outline" size={20} color="#687076" />
+                  <Text style={styles.muted}>Live map is available only while the job is on the way or actively shooting.</Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -1119,40 +1156,6 @@ function JobsScreen({
             routeTravelTimeMinutes={selectedJob.routeTravelTimeMinutes}
             routeDistanceStatus={selectedJob.routeDistanceStatus}
           />
-        </View>
-      )}
-      {showMap ? (
-        <View style={styles.mapWrap}>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: selectedJob.liveLocation!.latitude,
-              longitude: selectedJob.liveLocation!.longitude,
-              latitudeDelta: 0.04,
-              longitudeDelta: 0.04,
-            }}
-            region={{
-              latitude: selectedJob.liveLocation!.latitude,
-              longitude: selectedJob.liveLocation!.longitude,
-              latitudeDelta: 0.04,
-              longitudeDelta: 0.04,
-            }}
-          >
-            <Marker
-              coordinate={{
-                latitude: selectedJob.liveLocation!.latitude,
-                longitude: selectedJob.liveLocation!.longitude,
-              }}
-              title="The Knoxville Drone Guy"
-              description="Live admin phone location for this active job"
-            />
-          </MapView>
-          <Text style={styles.mapCaption}>Live location updated {formatClockTime(new Date(selectedJob.liveLocation!.updatedAt))}.</Text>
-        </View>
-      ) : (
-        <View style={styles.locationClosed}>
-          <Ionicons name="location-outline" size={20} color="#687076" />
-          <Text style={styles.muted}>Live map is available only while the job is on the way or actively shooting.</Text>
         </View>
       )}
       {isAdmin && (
@@ -3075,9 +3078,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
-  mapWrap: {
-    marginHorizontal: 14,
+  projectMapSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#e6ece8',
+    paddingTop: 14,
+    marginTop: 2,
     marginBottom: 14,
+  },
+  projectMapHeading: {
+    color: '#101820',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  projectMapWrap: {
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
@@ -3092,9 +3106,8 @@ const styles = StyleSheet.create({
     color: '#405048',
     fontSize: 12,
   },
-  locationClosed: {
-    marginHorizontal: 14,
-    marginBottom: 14,
+  projectLocationClosed: {
+    minHeight: 58,
     borderRadius: 8,
     padding: 12,
     flexDirection: 'row',
