@@ -749,7 +749,13 @@ export default function App() {
           <Text style={styles.noticeText}>Demo mode: add Firebase env values to connect live auth, chat, projects, media, and notifications.</Text>
         </View>
       )}
-      <View style={styles.content}>{renderContent()}</View>
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+        {renderContent()}
+      </KeyboardAvoidingView>
       <MediaViewer attachment={selectedMedia} onClose={() => setSelectedMedia(null)} />
       <View style={styles.tabBar}>
         {tabs.map((tab) => {
@@ -864,11 +870,7 @@ function ChatScreen({
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 68 : 0}
-    >
+    <View style={styles.screen}>
       {isAdmin && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selector}>
           {threads.map((thread) => (
@@ -887,7 +889,12 @@ function ChatScreen({
           <Text style={styles.muted}>Push notifications are sent for new messages in production.</Text>
         </View>
       </View>
-      <ScrollView style={styles.messageList} contentContainerStyle={styles.messageListContent}>
+      <ScrollView
+        style={styles.messageList}
+        contentContainerStyle={styles.messageListContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
         {messages.map((message) => {
           const mine = message.senderId === user.uid;
           return (
@@ -931,7 +938,7 @@ function ChatScreen({
           <Ionicons name="send" size={19} color="#ffffff" />
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -949,7 +956,12 @@ function NotificationsScreen({
   const hasAlerts = pendingRequests.length > 0;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.notificationsPanel}>
         <View style={styles.notificationsHeader}>
           <View style={styles.flexOne}>
@@ -1032,7 +1044,12 @@ function JobsScreen({
 
   if (!selectedJob) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
         {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
         <EmptyState title="No projects yet" body="Assigned projects and progress updates will appear here." />
       </ScrollView>
@@ -1142,7 +1159,12 @@ function JobsScreen({
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
+    >
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
       {isAdmin && (
         <View style={styles.adminPanel}>
@@ -2120,7 +2142,12 @@ function AccountScreen({
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.accountCard}>
         <Text style={styles.sectionTitle}>{user?.displayName ?? 'Sign in'}</Text>
         <Text style={styles.muted}>{user?.email ?? 'Firebase invite sign-in will be enabled after configuration.'}</Text>
