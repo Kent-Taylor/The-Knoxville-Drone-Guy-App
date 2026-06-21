@@ -240,6 +240,7 @@ export default function App() {
   const [selectedJobId, setSelectedJobId] = useState(demoJob.id);
   const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
   const [chatViewedAtByUser, setChatViewedAtByUser] = useState<Record<string, number>>({});
+  const [seenAlertKeysByUser, setSeenAlertKeysByUser] = useState<Record<string, string[]>>({});
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -273,16 +274,36 @@ export default function App() {
       isAdmin ? request.status === 'requested' : request.status === 'accepted' || request.status === 'needs_details',
     );
   }, [isAdmin, user, visibleShootRequests]);
-  const notificationBadgeCount = actionNeededRequests.length;
+  const alertKeys = useMemo(
+    () => actionNeededRequests.map((request) => `${request.status}:${request.id}`),
+    [actionNeededRequests],
+  );
+  const notificationBadgeCount = useMemo(() => {
+    if (!user) return 0;
+    const seenKeys = new Set(seenAlertKeysByUser[user.uid] ?? []);
+    return alertKeys.filter((key) => !seenKeys.has(key)).length;
+  }, [alertKeys, seenAlertKeysByUser, user]);
 
   const markChatViewed = () => {
     if (!user) return;
     setChatViewedAtByUser((current) => ({ ...current, [user.uid]: Date.now() }));
   };
 
+  const markAlertsViewed = () => {
+    if (!user) return;
+    setSeenAlertKeysByUser((current) => {
+      const mergedKeys = new Set([...(current[user.uid] ?? []), ...alertKeys]);
+      return { ...current, [user.uid]: [...mergedKeys] };
+    });
+  };
+
   useEffect(() => {
     if (activeTab === 'chat') markChatViewed();
   }, [activeTab, selectedThreadId, data.messages.length, user?.uid]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') markAlertsViewed();
+  }, [activeTab, alertKeys.join('|'), user?.uid]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth || !db) return undefined;
@@ -768,6 +789,7 @@ export default function App() {
               style={styles.tabButton}
               onPress={() => {
                 if (tab.key === 'chat') markChatViewed();
+                if (tab.key === 'notifications') markAlertsViewed();
                 setActiveTab(tab.key);
               }}
             >
