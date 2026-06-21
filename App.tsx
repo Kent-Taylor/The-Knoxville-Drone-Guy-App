@@ -238,7 +238,7 @@ export default function App() {
   const [selectedThreadId, setSelectedThreadId] = useState(demoThread.id);
   const [selectedJobId, setSelectedJobId] = useState(demoJob.id);
   const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
-  const [lastChatViewedAt, setLastChatViewedAt] = useState(0);
+  const [chatViewedAtByUser, setChatViewedAtByUser] = useState<Record<string, number>>({});
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -263,19 +263,25 @@ export default function App() {
   const selectedJob = visibleJobs.find((job) => job.id === selectedJobId) ?? visibleJobs[0];
   const unreadMessageCount = useMemo(() => {
     if (!user) return 0;
-    return data.messages.filter((message) => message.senderId !== user.uid && message.createdAt > lastChatViewedAt).length;
-  }, [data.messages, lastChatViewedAt, user]);
+    const lastViewedAt = chatViewedAtByUser[user.uid] ?? 0;
+    return data.messages.filter((message) => message.senderId !== user.uid && message.createdAt > lastViewedAt).length;
+  }, [chatViewedAtByUser, data.messages, user]);
   const actionNeededRequests = useMemo(() => {
     if (!user) return [];
     return visibleShootRequests.filter((request) =>
       isAdmin ? request.status === 'requested' : request.status === 'needs_details',
     );
   }, [isAdmin, user, visibleShootRequests]);
-  const notificationBadgeCount = unreadMessageCount + actionNeededRequests.length;
+  const notificationBadgeCount = actionNeededRequests.length;
+
+  const markChatViewed = () => {
+    if (!user) return;
+    setChatViewedAtByUser((current) => ({ ...current, [user.uid]: Date.now() }));
+  };
 
   useEffect(() => {
-    if (activeTab === 'chat') setLastChatViewedAt(Date.now());
-  }, [activeTab, selectedThreadId, data.messages.length]);
+    if (activeTab === 'chat') markChatViewed();
+  }, [activeTab, selectedThreadId, data.messages.length, user?.uid]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth || !db) return undefined;
@@ -439,10 +445,6 @@ export default function App() {
           : thread,
       ),
     }));
-    scheduleLocalNotification(
-      isAdmin ? 'Client notification ready' : 'Admin notification ready',
-      isAdmin ? 'The client would receive this reply as a push notification.' : 'Admin would receive this message as a push notification.',
-    );
   };
 
   const updateJobStatus = async (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => {
@@ -720,13 +722,8 @@ export default function App() {
       return (
         <NotificationsScreen
           isAdmin={isAdmin}
-          onOpenChat={() => {
-            setLastChatViewedAt(Date.now());
-            setActiveTab('chat');
-          }}
           onOpenProjects={() => setActiveTab('jobs')}
           pendingRequests={actionNeededRequests}
-          unreadMessageCount={unreadMessageCount}
           user={user}
         />
       );
@@ -762,7 +759,7 @@ export default function App() {
               key={tab.key}
               style={styles.tabButton}
               onPress={() => {
-                if (tab.key === 'chat') setLastChatViewedAt(Date.now());
+                if (tab.key === 'chat') markChatViewed();
                 setActiveTab(tab.key);
               }}
             >
@@ -940,20 +937,16 @@ function ChatScreen({
 
 function NotificationsScreen({
   isAdmin,
-  onOpenChat,
   onOpenProjects,
   pendingRequests,
-  unreadMessageCount,
   user,
 }: {
   isAdmin: boolean;
-  onOpenChat: () => void;
   onOpenProjects: () => void;
   pendingRequests: ShootRequest[];
-  unreadMessageCount: number;
   user: AppUser;
 }) {
-  const hasAlerts = unreadMessageCount > 0 || pendingRequests.length > 0;
+  const hasAlerts = pendingRequests.length > 0;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
@@ -964,7 +957,7 @@ function NotificationsScreen({
             <Text style={styles.muted}>Updates that need your attention.</Text>
           </View>
           <View style={styles.historyCountPill}>
-            <Text style={styles.historyCountText}>{unreadMessageCount + pendingRequests.length}</Text>
+            <Text style={styles.historyCountText}>{pendingRequests.length}</Text>
           </View>
         </View>
         {!hasAlerts ? (
@@ -974,20 +967,6 @@ function NotificationsScreen({
           </View>
         ) : (
           <>
-            {unreadMessageCount > 0 && (
-              <Pressable style={styles.notificationCard} onPress={onOpenChat}>
-                <View style={styles.notificationIconWrap}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0f766e" />
-                </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.notificationTitle}>New Chat Message{unreadMessageCount === 1 ? '' : 's'}</Text>
-                  <Text style={styles.muted}>
-                    {unreadMessageCount} unread message{unreadMessageCount === 1 ? '' : 's'} waiting in chat.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward-outline" size={18} color="#687076" />
-              </Pressable>
-            )}
             {pendingRequests.map((request) => (
               <Pressable key={request.id} style={styles.notificationCard} onPress={onOpenProjects}>
                 <View style={styles.notificationIconWrap}>
