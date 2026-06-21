@@ -7,10 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import type { ComponentProps } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -245,6 +246,7 @@ export default function App() {
   const [seenAlertKeysByUser, setSeenAlertKeysByUser] = useState<Record<string, string[]>>({});
   const [pendingChatReference, setPendingChatReference] = useState<ChatReference | undefined>();
   const [focusedRequestId, setFocusedRequestId] = useState<string | undefined>();
+  const referenceSlide = useRef(new Animated.Value(0)).current;
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -743,7 +745,28 @@ export default function App() {
 
   const openShootRequestReference = (requestId: string) => {
     setFocusedRequestId(requestId);
+    referenceSlide.setValue(1);
     setActiveTab('jobs');
+    Animated.timing(referenceSlide, {
+      toValue: 0,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const referenceSlideStyle = {
+    opacity: referenceSlide.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0.96],
+    }),
+    transform: [
+      {
+        translateX: referenceSlide.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 42],
+        }),
+      },
+    ],
   };
 
   const renderContent = () => {
@@ -823,7 +846,9 @@ export default function App() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
-        {renderContent()}
+        <Animated.View style={[styles.content, referenceSlideStyle]}>
+          {renderContent()}
+        </Animated.View>
       </KeyboardAvoidingView>
       <MediaViewer attachment={selectedMedia} onClose={() => setSelectedMedia(null)} />
       <View style={styles.tabBar}>
