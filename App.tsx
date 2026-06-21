@@ -193,7 +193,7 @@ const initialData: AppData = {
   shootRequests: [demoShootRequest],
 };
 
-type TabKey = 'website' | 'chat' | 'jobs' | 'account';
+type TabKey = 'website' | 'chat' | 'jobs' | 'notifications' | 'account';
 type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
 type DrivingRouteResult = {
   distanceMiles: number;
@@ -208,6 +208,7 @@ const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }
   { key: 'website', label: 'Website', icon: 'globe-outline' },
   { key: 'chat', label: 'Chat', icon: 'chatbubble-ellipses-outline' },
   { key: 'jobs', label: 'Projects', icon: 'briefcase-outline' },
+  { key: 'notifications', label: 'Alerts', icon: 'notifications-outline' },
   { key: 'account', label: 'Account', icon: 'person-circle-outline' },
 ];
 
@@ -237,7 +238,7 @@ export default function App() {
   const [selectedThreadId, setSelectedThreadId] = useState(demoThread.id);
   const [selectedJobId, setSelectedJobId] = useState(demoJob.id);
   const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
-  const [lastChatViewedAt, setLastChatViewedAt] = useState(Date.now());
+  const [lastChatViewedAt, setLastChatViewedAt] = useState(0);
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -264,6 +265,13 @@ export default function App() {
     if (!user) return 0;
     return data.messages.filter((message) => message.senderId !== user.uid && message.createdAt > lastChatViewedAt).length;
   }, [data.messages, lastChatViewedAt, user]);
+  const actionNeededRequests = useMemo(() => {
+    if (!user) return [];
+    return visibleShootRequests.filter((request) =>
+      isAdmin ? request.status === 'requested' : request.status === 'needs_details',
+    );
+  }, [isAdmin, user, visibleShootRequests]);
+  const notificationBadgeCount = unreadMessageCount + actionNeededRequests.length;
 
   useEffect(() => {
     if (activeTab === 'chat') setLastChatViewedAt(Date.now());
@@ -708,6 +716,21 @@ export default function App() {
         />
       );
     }
+    if (activeTab === 'notifications') {
+      return (
+        <NotificationsScreen
+          isAdmin={isAdmin}
+          onOpenChat={() => {
+            setLastChatViewedAt(Date.now());
+            setActiveTab('chat');
+          }}
+          onOpenProjects={() => setActiveTab('jobs')}
+          pendingRequests={actionNeededRequests}
+          unreadMessageCount={unreadMessageCount}
+          user={user}
+        />
+      );
+    }
     return <AccountScreen onUpdateSettings={updateAccountSettings} user={user} switchRole={switchRole} />;
   };
 
@@ -748,6 +771,11 @@ export default function App() {
                 {tab.key === 'chat' && unreadMessageCount > 0 && (
                   <View style={styles.tabBadge}>
                     <Text style={styles.tabBadgeText}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</Text>
+                  </View>
+                )}
+                {tab.key === 'notifications' && notificationBadgeCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{notificationBadgeCount > 99 ? '99+' : notificationBadgeCount}</Text>
                   </View>
                 )}
               </View>
@@ -907,6 +935,79 @@ function ChatScreen({
         </Pressable>
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+function NotificationsScreen({
+  isAdmin,
+  onOpenChat,
+  onOpenProjects,
+  pendingRequests,
+  unreadMessageCount,
+  user,
+}: {
+  isAdmin: boolean;
+  onOpenChat: () => void;
+  onOpenProjects: () => void;
+  pendingRequests: ShootRequest[];
+  unreadMessageCount: number;
+  user: AppUser;
+}) {
+  const hasAlerts = unreadMessageCount > 0 || pendingRequests.length > 0;
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.notificationsPanel}>
+        <View style={styles.notificationsHeader}>
+          <View style={styles.flexOne}>
+            <Text style={styles.sectionTitle}>Notifications</Text>
+            <Text style={styles.muted}>Updates that need your attention.</Text>
+          </View>
+          <View style={styles.historyCountPill}>
+            <Text style={styles.historyCountText}>{unreadMessageCount + pendingRequests.length}</Text>
+          </View>
+        </View>
+        {!hasAlerts ? (
+          <View style={styles.historyEmpty}>
+            <Ionicons name="checkmark-circle-outline" size={18} color="#687076" />
+            <Text style={[styles.muted, styles.historyEmptyText]}>No new notifications right now.</Text>
+          </View>
+        ) : (
+          <>
+            {unreadMessageCount > 0 && (
+              <Pressable style={styles.notificationCard} onPress={onOpenChat}>
+                <View style={styles.notificationIconWrap}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0f766e" />
+                </View>
+                <View style={styles.flexOne}>
+                  <Text style={styles.notificationTitle}>New Chat Message{unreadMessageCount === 1 ? '' : 's'}</Text>
+                  <Text style={styles.muted}>
+                    {unreadMessageCount} unread message{unreadMessageCount === 1 ? '' : 's'} waiting in chat.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward-outline" size={18} color="#687076" />
+              </Pressable>
+            )}
+            {pendingRequests.map((request) => (
+              <Pressable key={request.id} style={styles.notificationCard} onPress={onOpenProjects}>
+                <View style={styles.notificationIconWrap}>
+                  <Ionicons name={isAdmin ? 'briefcase-outline' : 'information-circle-outline'} size={20} color="#0f766e" />
+                </View>
+                <View style={styles.flexOne}>
+                  <Text style={styles.notificationTitle}>
+                    {isAdmin ? 'New Project Request' : 'Project Needs Details'}
+                  </Text>
+                  <Text style={styles.muted}>
+                    {request.title} · {request.requesterName || request.clientName || user.displayName}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward-outline" size={18} color="#687076" />
+              </Pressable>
+            ))}
+          </>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -1070,40 +1171,47 @@ function JobsScreen({
           {shootRequests.length === 0 ? (
             <Text style={styles.muted}>New client requests will appear here.</Text>
           ) : (
-            shootRequests.map((request) => (
-              <View key={request.id} style={styles.requestCard}>
-                <View style={styles.requestHeader}>
-                  <View style={styles.flexOne}>
-                    <Text style={styles.requestTitle}>{request.title}</Text>
-                    <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
+            shootRequests.map((request) => {
+              const accepted = request.status === 'accepted';
+              return (
+                <View key={request.id} style={[styles.requestCard, accepted && styles.acceptedRequestCard]}>
+                  <View style={styles.requestHeader}>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.requestTitle}>{request.title}</Text>
+                      <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
+                    </View>
+                    <View style={[styles.requestStatusPill, accepted && styles.acceptedRequestPill]}>
+                      <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
+                    </View>
                   </View>
-                  <View style={styles.requestStatusPill}>
-                    <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
-                  </View>
+                  {!accepted && (
+                    <>
+                      <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
+                      <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
+                      <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                      {!!request.videoEditFormat && (
+                        <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
+                      )}
+                      {request.isRecurring && (
+                        <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
+                      )}
+                      {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
+                      {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                      <RouteDistancePanel
+                        projectAddress={request.projectAddress}
+                        routeDistanceMiles={request.routeDistanceMiles}
+                        routeTravelTimeMinutes={request.routeTravelTimeMinutes}
+                        routeDistanceStatus={request.routeDistanceStatus}
+                      />
+                      <View style={styles.rowActions}>
+                        <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
+                        <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
+                      </View>
+                    </>
+                  )}
                 </View>
-                <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
-                <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
-                <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
-                {!!request.videoEditFormat && (
-                  <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
-                )}
-                {request.isRecurring && (
-                  <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
-                )}
-                {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
-                {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
-                <RouteDistancePanel
-                  projectAddress={request.projectAddress}
-                  routeDistanceMiles={request.routeDistanceMiles}
-                  routeTravelTimeMinutes={request.routeTravelTimeMinutes}
-                  routeDistanceStatus={request.routeDistanceStatus}
-                />
-                <View style={styles.rowActions}>
-                  <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
-                  <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
-                </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       )}
@@ -3142,6 +3250,46 @@ const styles = StyleSheet.create({
     borderColor: '#e4e8e6',
     gap: 12,
   },
+  notificationsPanel: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    padding: 18,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e4e8e6',
+    gap: 12,
+  },
+  notificationsHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  notificationCard: {
+    minHeight: 72,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dce5df',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fbfdfc',
+  },
+  notificationIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e3f5f1',
+  },
+  notificationTitle: {
+    color: '#17221d',
+    fontSize: 15,
+    fontWeight: '800',
+  },
   shootRequestCard: {
     marginHorizontal: 14,
     marginBottom: 14,
@@ -3253,6 +3401,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fbfdfc',
     gap: 4,
   },
+  acceptedRequestCard: {
+    backgroundColor: '#f7fbfb',
+  },
   requestHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -3269,6 +3420,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     backgroundColor: '#e3f5f1',
+  },
+  acceptedRequestPill: {
+    backgroundColor: '#dff3ee',
   },
   requestStatusText: {
     color: '#0f766e',
