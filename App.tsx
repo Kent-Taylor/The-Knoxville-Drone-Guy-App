@@ -1142,7 +1142,9 @@ function JobsScreen({
           historyJobs.length === 0 ? (
             <View style={styles.historyEmpty}>
               <Ionicons name="archive-outline" size={18} color="#687076" />
-              <Text style={styles.muted}>Projects marked Job Completed will appear here.</Text>
+              <Text style={[styles.muted, styles.historyEmptyText]}>
+                Projects marked Job Completed will appear here.
+              </Text>
             </View>
           ) : (
             historyJobs.map((job) => renderProjectCard(job, true))
@@ -2984,9 +2986,9 @@ const styles = StyleSheet.create({
   },
   projectListCard: {
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dce5df',
-    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#cfdad3',
+    marginBottom: 14,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
   },
@@ -3054,10 +3056,16 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 8,
     paddingHorizontal: 10,
+    paddingVertical: 10,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     backgroundColor: '#f7fbfb',
+  },
+  historyEmptyText: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   historyJobListItem: {
     backgroundColor: '#fbfcfc',
