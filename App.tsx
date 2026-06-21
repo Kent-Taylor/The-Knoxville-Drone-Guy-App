@@ -1103,14 +1103,6 @@ function JobsScreen({
           )
         )}
       </View>
-      <View style={styles.jobHero}>
-        <Text style={styles.sectionTitle}>{selectedJob.title}</Text>
-        <Text style={styles.muted}>{selectedJob.address}</Text>
-        <View style={styles.statusPill}>
-          <Ionicons name="radio-button-on" size={14} color="#0f766e" />
-          <Text style={styles.statusText}>{statusLabel(selectedJob.status)}</Text>
-        </View>
-      </View>
       {isAdmin && (
         <View style={styles.adminPanel}>
           <Text style={styles.smallTitle}>Route Distance</Text>
@@ -2983,15 +2975,6 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.45,
   },
-  jobHero: {
-    marginHorizontal: 14,
-    marginBottom: 14,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#dce5df',
-  },
   jobsList: {
     marginHorizontal: 14,
     marginBottom: 14,
@@ -3082,21 +3065,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     textAlign: 'center',
-  },
-  statusPill: {
-    alignSelf: 'flex-start',
-    marginTop: 12,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#e3f5f1',
-  },
-  statusText: {
-    color: '#0f766e',
-    fontWeight: '800',
   },
   mapWrap: {
     marginHorizontal: 14,
