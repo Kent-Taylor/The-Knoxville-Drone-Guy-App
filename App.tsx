@@ -182,6 +182,7 @@ const demoShootRequest: ShootRequest = {
 
 const initialData: AppData = {
   user: clientUser,
+  clients: [clientUser],
   threads: [demoThread],
   messages: [
     {
@@ -200,6 +201,7 @@ const initialData: AppData = {
 type TabKey = 'website' | 'chat' | 'jobs' | 'notifications' | 'account';
 type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
 type AdminProjectDraft = {
+  linkedClient?: AppUser;
   clientName: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -327,7 +329,7 @@ export default function App() {
     const firestore = db;
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        setData((current) => ({ ...current, user: null, threads: [], messages: [], jobs: [], shootRequests: [] }));
+        setData((current) => ({ ...current, user: null, clients: [], threads: [], messages: [], jobs: [], shootRequests: [] }));
         return;
       }
 
@@ -374,6 +376,24 @@ export default function App() {
       if (threads[0]) setSelectedThreadId((current) => current || threads[0].id);
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || user?.role !== 'admin') {
+      if (user?.role === 'admin') {
+        setData((current) => ({ ...current, clients: [clientUser] }));
+      }
+      return undefined;
+    }
+    const usersQuery = query(collection(db, 'users'), orderBy('displayName', 'asc'));
+
+    return onSnapshot(usersQuery, (snapshot) => {
+      const clients = snapshot.docs
+        .map((item) => ({ uid: item.id, ...item.data() }) as AppUser)
+        .filter((item) => item.role === 'client')
+        .sort((first, second) => first.displayName.localeCompare(second.displayName));
+      setData((current) => ({ ...current, clients }));
+    });
+  }, [user?.role]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !selectedJob) return undefined;
@@ -449,7 +469,7 @@ export default function App() {
   }, [user]);
 
   const switchRole = (role: AppUser['role']) => {
-    setData((current) => ({ ...current, user: role === 'admin' ? adminUser : clientUser }));
+    setData((current) => ({ ...current, user: role === 'admin' ? adminUser : clientUser, clients: [clientUser] }));
     setActiveTab('jobs');
   };
 
@@ -606,7 +626,10 @@ export default function App() {
   const createAdminProject = async (project: AdminProjectDraft) => {
     if (!isAdmin) return '';
     const route = await calculateDrivingRoute(HOME_BASE_ADDRESS, project.address);
-    const claimCode = generateProjectClaimCode(data.jobs.map((job) => job.projectClaimCode).filter(Boolean) as string[]);
+    const linkedClient = project.linkedClient;
+    const claimCode = linkedClient
+      ? undefined
+      : generateProjectClaimCode(data.jobs.map((job) => job.projectClaimCode).filter(Boolean) as string[]);
     const jobId = `job-${Date.now()}`;
     const initialUpdate: JobUpdate = {
       id: `update-${Date.now()}`,
@@ -617,14 +640,16 @@ export default function App() {
     };
     const job: Job = {
       id: jobId,
-      clientId: `unclaimed-${claimCode}`,
-      clientName: project.clientName.trim(),
-      clientEmail: project.clientEmail?.trim() || undefined,
+      clientId: linkedClient?.uid ?? `unclaimed-${claimCode}`,
+      clientName: linkedClient?.displayName ?? project.clientName.trim(),
+      clientEmail: linkedClient?.email ?? project.clientEmail?.trim() ?? undefined,
       clientPhone: project.clientPhone?.trim() || undefined,
       title: project.title.trim(),
       address: project.address.trim(),
       projectClaimCode: claimCode,
-      claimStatus: 'unclaimed',
+      claimStatus: linkedClient ? 'claimed' : 'unclaimed',
+      claimedByUid: linkedClient?.uid,
+      claimedAt: linkedClient ? Date.now() : undefined,
       homeBaseAddress: HOME_BASE_ADDRESS,
       routeDistanceMiles: route?.distanceMiles,
       routeTravelTimeMinutes: route?.travelTimeMinutes,
@@ -645,8 +670,11 @@ export default function App() {
       jobs: [job, ...current.jobs],
     }));
     setSelectedJobId(job.id);
-    scheduleLocalNotification('Project created', `Client signup code: ${claimCode}`);
-    return claimCode;
+    scheduleLocalNotification(
+      'Project created',
+      linkedClient ? `Project linked to ${linkedClient.displayName}.` : `Client signup code: ${claimCode}`,
+    );
+    return claimCode ?? '';
   };
 
   const editJobUpdate = async (
@@ -851,6 +879,7 @@ export default function App() {
       return (
         <JobsScreen
           isAdmin={isAdmin}
+          clients={data.clients}
           jobs={visibleJobs}
           onAcceptShootRequest={acceptShootRequest}
           onCreateAdminProject={createAdminProject}
@@ -1187,6 +1216,7 @@ function NotificationsScreen({
 }
 
 function JobsScreen({
+  clients,
   focusedRequestId,
   isAdmin,
   jobs,
@@ -1204,6 +1234,7 @@ function JobsScreen({
   shootRequests,
   user,
 }: {
+  clients: AppUser[];
   focusedRequestId?: string;
   isAdmin: boolean;
   jobs: Job[];
@@ -1247,7 +1278,7 @@ function JobsScreen({
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
       >
-        {isAdmin && <AdminCreateProjectForm onSubmit={onCreateAdminProject} />}
+        {isAdmin && <AdminCreateProjectForm clients={clients} onSubmit={onCreateAdminProject} />}
         {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
         <EmptyState title="No projects yet" body="Assigned projects and progress updates will appear here." />
       </ScrollView>
@@ -1384,7 +1415,7 @@ function JobsScreen({
       keyboardDismissMode="interactive"
       keyboardShouldPersistTaps="handled"
     >
-      {isAdmin && <AdminCreateProjectForm onSubmit={onCreateAdminProject} />}
+      {isAdmin && <AdminCreateProjectForm clients={clients} onSubmit={onCreateAdminProject} />}
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
       {(isAdmin || shootRequests.length > 0) && (
         <View style={styles.adminPanel}>
@@ -1599,11 +1630,16 @@ function JobsScreen({
 }
 
 function AdminCreateProjectForm({
+  clients,
   onSubmit,
 }: {
+  clients: AppUser[];
   onSubmit: (project: AdminProjectDraft) => Promise<string>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -1617,6 +1653,26 @@ function AdminCreateProjectForm({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState('');
+
+  const sortedClients = useMemo(
+    () => [...clients].sort((first, second) => first.displayName.localeCompare(second.displayName)),
+    [clients],
+  );
+  const selectedClient = sortedClients.find((client) => client.uid === selectedClientId);
+  const filteredClients = useMemo(() => {
+    const needle = clientSearch.trim().toLowerCase();
+    if (!needle) return sortedClients;
+    return sortedClients.filter((client) =>
+      `${client.displayName} ${client.email}`.toLowerCase().includes(needle),
+    );
+  }, [clientSearch, sortedClients]);
+
+  const onlyClientId = sortedClients.length === 1 ? sortedClients[0].uid : '';
+  useEffect(() => {
+    if (!selectedClientId && onlyClientId) {
+      setSelectedClientId(onlyClientId);
+    }
+  }, [onlyClientId, selectedClientId]);
 
   const filteredAddresses = useMemo(() => {
     const needle = address.trim().toLowerCase();
@@ -1634,7 +1690,8 @@ function AdminCreateProjectForm({
   const submit = async () => {
     if (submitting) return;
     const errors = [
-      ...(!clientName.trim() ? ['clientName'] : []),
+      ...(clientMode === 'existing' && !selectedClient ? ['selectedClient'] : []),
+      ...(clientMode === 'new' && !clientName.trim() ? ['clientName'] : []),
       ...(!title.trim() ? ['title'] : []),
       ...(!scheduledDate ? ['scheduledDate'] : []),
       ...(!scheduledTime ? ['scheduledTime'] : []),
@@ -1651,14 +1708,21 @@ function AdminCreateProjectForm({
     setCreatedCode('');
     try {
       const claimCode = await onSubmit({
-        clientName: clientName.trim(),
-        clientEmail: clientEmail.trim() || undefined,
+        linkedClient: clientMode === 'existing' ? selectedClient : undefined,
+        clientName: clientMode === 'existing' ? selectedClient?.displayName ?? '' : clientName.trim(),
+        clientEmail: clientMode === 'existing' ? selectedClient?.email : clientEmail.trim() || undefined,
         clientPhone: clientPhone.trim() || undefined,
         title: title.trim(),
         address: address.trim(),
         notes: notes.trim(),
         scheduledAt: scheduledAtDate.getTime(),
       });
+      const createdMessage =
+        clientMode === 'existing'
+          ? `Project Created! Linked to ${selectedClient?.displayName ?? 'client'}.`
+          : `Project Created! Client Signup Code: ${claimCode}`;
+      setSelectedClientId('');
+      setClientSearch('');
       setClientName('');
       setClientEmail('');
       setClientPhone('');
@@ -1668,7 +1732,7 @@ function AdminCreateProjectForm({
       setScheduledDate(null);
       setScheduledTime(null);
       setValidationErrors([]);
-      setCreatedCode(`Project Created! Client Signup Code: ${claimCode}`);
+      setCreatedCode(createdMessage);
     } finally {
       setSubmitting(false);
     }
@@ -1691,33 +1755,91 @@ function AdminCreateProjectForm({
       )}
       {expanded && (
         <>
-          <IconTextInput
-            error={hasError('clientName')}
-            icon="person-outline"
-            placeholder="Client name or business name"
-            value={clientName}
-            onChangeText={(value) => {
-              setClientName(value);
-              clearValidationError('clientName');
-            }}
-          />
-          <IconTextInput
-            icon="mail-outline"
-            placeholder="Client email (optional)"
-            value={clientEmail}
-            onChangeText={setClientEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            textContentType="emailAddress"
-          />
-          <IconTextInput
-            icon="call-outline"
-            placeholder="Client phone (optional)"
-            value={clientPhone}
-            onChangeText={setClientPhone}
-            keyboardType="phone-pad"
-            textContentType="telephoneNumber"
-          />
+          <View style={styles.authToggle}>
+            <Pressable
+              style={[styles.authToggleButton, clientMode === 'existing' && styles.activeAuthToggleButton]}
+              onPress={() => {
+                setClientMode('existing');
+                clearValidationError('clientName');
+              }}
+            >
+              <Text style={[styles.authToggleText, clientMode === 'existing' && styles.activeAuthToggleText]}>Existing Client</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.authToggleButton, clientMode === 'new' && styles.activeAuthToggleButton]}
+              onPress={() => {
+                setClientMode('new');
+                clearValidationError('selectedClient');
+              }}
+            >
+              <Text style={[styles.authToggleText, clientMode === 'new' && styles.activeAuthToggleText]}>No Account Yet</Text>
+            </Pressable>
+          </View>
+          {clientMode === 'existing' ? (
+            <View style={[styles.clientPickerPanel, hasError('selectedClient') && styles.validationErrorBorder]}>
+              <IconTextInput
+                icon="search-outline"
+                placeholder="Search clients"
+                value={clientSearch}
+                onChangeText={setClientSearch}
+              />
+              <View style={styles.clientPickerList}>
+                {filteredClients.length === 0 ? (
+                  <Text style={styles.muted}>No client accounts found.</Text>
+                ) : (
+                  filteredClients.map((client) => {
+                    const selected = selectedClientId === client.uid;
+                    return (
+                      <Pressable
+                        key={client.uid}
+                        style={[styles.clientPickerRow, selected && styles.activeClientPickerRow]}
+                        onPress={() => {
+                          setSelectedClientId(client.uid);
+                          clearValidationError('selectedClient');
+                        }}
+                      >
+                        <View style={styles.flexOne}>
+                          <Text style={[styles.clientPickerName, selected && styles.activeClientPickerName]}>{client.displayName}</Text>
+                          <Text style={styles.clientPickerEmail}>{client.email}</Text>
+                        </View>
+                        {selected && <Ionicons name="checkmark-circle-outline" size={20} color={theme.indigo} />}
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          ) : (
+            <>
+              <IconTextInput
+                error={hasError('clientName')}
+                icon="person-outline"
+                placeholder="Client name or business name"
+                value={clientName}
+                onChangeText={(value) => {
+                  setClientName(value);
+                  clearValidationError('clientName');
+                }}
+              />
+              <IconTextInput
+                icon="mail-outline"
+                placeholder="Client email (optional)"
+                value={clientEmail}
+                onChangeText={setClientEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                textContentType="emailAddress"
+              />
+              <IconTextInput
+                icon="call-outline"
+                placeholder="Client phone (optional)"
+                value={clientPhone}
+                onChangeText={setClientPhone}
+                keyboardType="phone-pad"
+                textContentType="telephoneNumber"
+              />
+            </>
+          )}
           <IconTextInput
             error={hasError('title')}
             icon="document-outline"
@@ -4231,6 +4353,46 @@ const styles = StyleSheet.create({
     color: theme.ink,
     fontSize: 13,
     lineHeight: 18,
+  },
+  clientPickerPanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    padding: 10,
+    gap: 10,
+    backgroundColor: '#fbfaff',
+  },
+  clientPickerList: {
+    gap: 8,
+  },
+  clientPickerRow: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.surface,
+  },
+  activeClientPickerRow: {
+    borderColor: theme.indigo,
+    backgroundColor: theme.softPurple,
+  },
+  clientPickerName: {
+    color: theme.ink,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeClientPickerName: {
+    color: theme.indigo,
+  },
+  clientPickerEmail: {
+    color: theme.muted,
+    fontSize: 12,
+    marginTop: 2,
   },
   radioRow: {
     minHeight: 60,

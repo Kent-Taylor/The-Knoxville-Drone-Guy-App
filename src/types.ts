@@ -144,6 +144,7 @@ export type ShootRequest = {
 
 export type AppData = {
   user: AppUser | null;
+  clients: AppUser[];
   threads: ChatThread[];
   messages: ChatMessage[];
   jobs: Job[];
