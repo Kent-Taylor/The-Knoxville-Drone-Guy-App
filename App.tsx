@@ -1049,7 +1049,9 @@ function JobsScreen({
               ) : (
                 <View style={styles.projectLocationClosed}>
                   <Ionicons name="location-outline" size={20} color="#687076" />
-                  <Text style={styles.muted}>Live map is available only while the job is on the way or actively shooting.</Text>
+                  <Text style={[styles.muted, styles.projectLocationText]}>
+                    Live map is available only while the job is on the way or actively shooting.
+                  </Text>
                 </View>
               )}
             </View>
@@ -3111,10 +3113,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce5df',
+  },
+  projectLocationText: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   adminPanel: {
     marginHorizontal: 14,
