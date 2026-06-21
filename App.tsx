@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -843,8 +844,9 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      onSend(body, assetToAttachment(result.assets[0]));
+      await onSend(body, assetToAttachment(result.assets[0]));
       setBody('');
+      Keyboard.dismiss();
     }
   };
 
@@ -860,8 +862,9 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      onSend(body, assetToAttachment(result.assets[0]));
+      await onSend(body, assetToAttachment(result.assets[0]));
       setBody('');
+      Keyboard.dismiss();
     }
   };
 
@@ -929,9 +932,10 @@ function ChatScreen({
         />
         <Pressable
           style={[styles.sendButton, !body.trim() && styles.disabledButton]}
-          onPress={() => {
-            onSend(body);
+          onPress={async () => {
+            await onSend(body);
             setBody('');
+            Keyboard.dismiss();
           }}
           disabled={!body.trim()}
         >
