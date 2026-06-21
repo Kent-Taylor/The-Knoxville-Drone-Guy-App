@@ -1257,6 +1257,8 @@ function JobsScreen({
   const [pendingMedia, setPendingMedia] = useState<Attachment | null>(null);
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [requestsExpanded, setRequestsExpanded] = useState(false);
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(focusedRequestId ?? null);
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [requestDraft, setRequestDraft] = useState<ShootRequestEdit>({
     title: '',
@@ -1269,6 +1271,13 @@ function JobsScreen({
     setDraftTitle(selectedJob?.title ?? '');
     setPendingMedia(null);
   }, [selectedJob?.id, selectedJob?.title]);
+
+  useEffect(() => {
+    if (focusedRequestId) {
+      setRequestsExpanded(true);
+      setExpandedRequestId(focusedRequestId);
+    }
+  }, [focusedRequestId]);
 
   if (!selectedJob) {
     return (
@@ -1311,6 +1320,8 @@ function JobsScreen({
   };
 
   const startEditingRequest = (request: ShootRequest) => {
+    setRequestsExpanded(true);
+    setExpandedRequestId(request.id);
     setEditingRequestId(request.id);
     setRequestDraft({
       title: request.title,
@@ -1419,104 +1430,138 @@ function JobsScreen({
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
       {(isAdmin || shootRequests.length > 0) && (
         <View style={styles.adminPanel}>
-          <Text style={styles.smallTitle}>{isAdmin ? 'Project Shoot Requests' : 'My Project Requests'}</Text>
-          {shootRequests.length === 0 ? (
-            <Text style={styles.muted}>New client requests will appear here.</Text>
-          ) : (
-            shootRequests.map((request) => {
-              const accepted = request.status === 'accepted';
-              const editing = editingRequestId === request.id;
-              const canEdit = isAdmin || request.status !== 'accepted';
-              const requestColors = shootRequestStatusColors(request.status);
-              return (
-                <View
-                  key={request.id}
-                  style={[
-                    styles.requestCard,
-                    accepted && styles.acceptedRequestCard,
-                    focusedRequestId === request.id && styles.focusedRequestCard,
-                  ]}
-                >
-                  <View style={styles.requestHeader}>
-                    <View style={styles.flexOne}>
-                      <Text style={styles.requestTitle}>{request.title}</Text>
-                      <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
-                    </View>
-                    <View style={[styles.requestStatusPill, { backgroundColor: requestColors.backgroundColor }]}>
-                      <Text style={[styles.requestStatusText, { color: requestColors.color }]}>
-                        {requestStatusLabel(request.status)}
-                      </Text>
-                    </View>
-                  </View>
-                  {editing ? (
-                    <>
-                      <TextInput
-                        style={styles.input}
-                        value={requestDraft.title}
-                        onChangeText={(title) => setRequestDraft((current) => ({ ...current, title }))}
-                        placeholder="Project name"
-                      />
-                      <TextInput
-                        style={styles.input}
-                        value={requestDraft.requestedWhen}
-                        onChangeText={(requestedWhen) => setRequestDraft((current) => ({ ...current, requestedWhen }))}
-                        placeholder="When"
-                      />
-                      <TextInput
-                        style={styles.input}
-                        value={requestDraft.projectAddress}
-                        onChangeText={(projectAddress) => setRequestDraft((current) => ({ ...current, projectAddress }))}
-                        placeholder="Project address"
-                      />
-                      <TextInput
-                        style={[styles.input, styles.noteInput]}
-                        value={requestDraft.details}
-                        onChangeText={(details) => setRequestDraft((current) => ({ ...current, details }))}
-                        placeholder="Describe the project"
-                        multiline
-                      />
-                      <View style={styles.rowActions}>
-                        <SecondaryButton label="Cancel" icon="close-outline" onPress={() => setEditingRequestId(null)} />
-                        <SecondaryButton label="Save" icon="save-outline" onPress={() => saveRequestEdit(request)} />
+          <Pressable
+            style={styles.accordionHeader}
+            onPress={() => {
+              setRequestsExpanded((current) => {
+                if (current) {
+                  setExpandedRequestId(null);
+                  setEditingRequestId(null);
+                }
+                return !current;
+              });
+            }}
+          >
+            <View style={styles.accordionTitleWrap}>
+              <Text style={styles.accordionTitle}>{isAdmin ? 'Project Shoot Requests' : 'My Project Requests'}</Text>
+              <Text style={styles.accordionSubtitle}>
+                {isAdmin ? 'Review client project requests.' : 'Submitted project requests and updates.'}
+              </Text>
+            </View>
+            <View style={styles.historyCountPill}>
+              <Text style={styles.historyCountText}>{shootRequests.length}</Text>
+            </View>
+            <Ionicons name={requestsExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
+          </Pressable>
+          {requestsExpanded && (
+            shootRequests.length === 0 ? (
+              <Text style={styles.muted}>New client requests will appear here.</Text>
+            ) : (
+              shootRequests.map((request) => {
+                const accepted = request.status === 'accepted';
+                const editing = editingRequestId === request.id;
+                const expanded = expandedRequestId === request.id || editing;
+                const canEdit = isAdmin || request.status !== 'accepted';
+                const requestColors = shootRequestStatusColors(request.status);
+                return (
+                  <View
+                    key={request.id}
+                    style={[
+                      styles.requestCard,
+                      accepted && styles.acceptedRequestCard,
+                      focusedRequestId === request.id && styles.focusedRequestCard,
+                    ]}
+                  >
+                    <Pressable
+                      style={styles.requestHeader}
+                      onPress={() => {
+                        if (editing) return;
+                        setExpandedRequestId((current) => (current === request.id ? null : request.id));
+                      }}
+                    >
+                      <View style={styles.flexOne}>
+                        <Text style={styles.requestTitle}>{request.title}</Text>
+                        <Text style={styles.muted}>{request.requesterName || request.clientName}</Text>
                       </View>
-                    </>
-                  ) : (
-                    <>
-                      {!accepted && (
+                      <View style={[styles.requestStatusPill, { backgroundColor: requestColors.backgroundColor }]}>
+                        <Text style={[styles.requestStatusText, { color: requestColors.color }]}>
+                          {requestStatusLabel(request.status)}
+                        </Text>
+                      </View>
+                      <Ionicons name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.muted} />
+                    </Pressable>
+                    {expanded && (
+                      editing ? (
                         <>
-                          <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
-                          <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
-                          <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
-                          {!!request.videoEditFormat && (
-                            <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
-                          )}
-                          {request.isRecurring && (
-                            <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
-                          )}
-                          {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
-                          {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
-                          <RouteDistancePanel
-                            projectAddress={request.projectAddress}
-                            routeDistanceMiles={request.routeDistanceMiles}
-                            routeTravelTimeMinutes={request.routeTravelTimeMinutes}
-                            routeDistanceStatus={request.routeDistanceStatus}
+                          <TextInput
+                            style={styles.input}
+                            value={requestDraft.title}
+                            onChangeText={(title) => setRequestDraft((current) => ({ ...current, title }))}
+                            placeholder="Project name"
                           />
+                          <TextInput
+                            style={styles.input}
+                            value={requestDraft.requestedWhen}
+                            onChangeText={(requestedWhen) => setRequestDraft((current) => ({ ...current, requestedWhen }))}
+                            placeholder="When"
+                          />
+                          <TextInput
+                            style={styles.input}
+                            value={requestDraft.projectAddress}
+                            onChangeText={(projectAddress) => setRequestDraft((current) => ({ ...current, projectAddress }))}
+                            placeholder="Project address"
+                          />
+                          <TextInput
+                            style={[styles.input, styles.noteInput]}
+                            value={requestDraft.details}
+                            onChangeText={(details) => setRequestDraft((current) => ({ ...current, details }))}
+                            placeholder="Describe the project"
+                            multiline
+                          />
+                          <View style={styles.rowActions}>
+                            <SecondaryButton label="Cancel" icon="close-outline" onPress={() => setEditingRequestId(null)} />
+                            <SecondaryButton label="Save" icon="save-outline" onPress={() => saveRequestEdit(request)} />
+                          </View>
                         </>
-                      )}
-                      <View style={styles.rowActions}>
-                        {isAdmin && (
-                          <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
-                        )}
-                        {canEdit && <SecondaryButton label="Edit" icon="create-outline" onPress={() => startEditingRequest(request)} />}
-                        {isAdmin && !accepted && (
-                          <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
-                        )}
-                      </View>
-                    </>
-                  )}
-                </View>
-              );
-            })
+                      ) : (
+                        <>
+                          {!accepted && (
+                            <>
+                              <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
+                              <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
+                              <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                              {!!request.videoEditFormat && (
+                                <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
+                              )}
+                              {request.isRecurring && (
+                                <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
+                              )}
+                              {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
+                              {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                              <RouteDistancePanel
+                                projectAddress={request.projectAddress}
+                                routeDistanceMiles={request.routeDistanceMiles}
+                                routeTravelTimeMinutes={request.routeTravelTimeMinutes}
+                                routeDistanceStatus={request.routeDistanceStatus}
+                              />
+                            </>
+                          )}
+                          <View style={styles.rowActions}>
+                            {isAdmin && (
+                              <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
+                            )}
+                            {canEdit && <SecondaryButton label="Edit" icon="create-outline" onPress={() => startEditingRequest(request)} />}
+                            {isAdmin && !accepted && (
+                              <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
+                            )}
+                          </View>
+                        </>
+                      )
+                    )}
+                  </View>
+                );
+              })
+            )
           )}
         </View>
       )}
