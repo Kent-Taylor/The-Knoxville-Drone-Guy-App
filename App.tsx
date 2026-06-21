@@ -985,6 +985,43 @@ function JobsScreen({
     setNote('');
   };
 
+  const renderProjectCard = (job: Job, isHistory = false) => {
+    const selected = selectedJob.id === job.id;
+    return (
+      <View
+        key={job.id}
+        style={[styles.projectListCard, isHistory && styles.historyJobListItem, selected && styles.activeJobListItem]}
+      >
+        <Pressable style={styles.jobListItem} onPress={() => setSelectedJobId(job.id)}>
+          <View style={styles.flexOne}>
+            <Text style={styles.jobListTitle}>{job.title}</Text>
+            <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+          </View>
+          <View style={styles.statusPillSmall}>
+            <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
+          </View>
+          <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+        </Pressable>
+        {selected && (
+          <View style={styles.projectProgressPanel}>
+            <Text style={styles.projectProgressHeading}>Progress updates</Text>
+            {job.updates.map((update, index) => (
+              <JobUpdateRow
+                key={update.id}
+                isAdmin={isAdmin}
+                job={job}
+                isLast={index === job.updates.length - 1}
+                onOpenMedia={onOpenMedia}
+                onSave={onEditUpdate}
+                update={update}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
@@ -1046,22 +1083,7 @@ function JobsScreen({
           activeJobs.length === 0 ? (
             <Text style={styles.muted}>No active projects right now.</Text>
           ) : (
-            activeJobs.map((job) => (
-              <Pressable
-                key={job.id}
-                style={[styles.jobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
-                onPress={() => setSelectedJobId(job.id)}
-              >
-                <View style={styles.flexOne}>
-                  <Text style={styles.jobListTitle}>{job.title}</Text>
-                  <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
-                </View>
-                <View style={styles.statusPillSmall}>
-                  <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
-                </View>
-                <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
-              </Pressable>
-            ))
+            activeJobs.map((job) => renderProjectCard(job))
           )
         )}
         <Pressable
@@ -1084,22 +1106,7 @@ function JobsScreen({
               <Text style={styles.muted}>Projects marked Job Completed will appear here.</Text>
             </View>
           ) : (
-            historyJobs.map((job) => (
-              <Pressable
-                key={job.id}
-                style={[styles.jobListItem, styles.historyJobListItem, selectedJob.id === job.id && styles.activeJobListItem]}
-                onPress={() => setSelectedJobId(job.id)}
-              >
-                <View style={styles.flexOne}>
-                  <Text style={styles.jobListTitle}>{job.title}</Text>
-                  <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
-                </View>
-                <View style={styles.statusPillSmall}>
-                  <Text style={styles.statusTextSmall}>{statusLabel(job.status)}</Text>
-                </View>
-                <Ionicons name={selectedJob.id === job.id ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
-              </Pressable>
-            ))
+            historyJobs.map((job) => renderProjectCard(job, true))
           )
         )}
       </View>
@@ -1198,20 +1205,6 @@ function JobsScreen({
           )}
         </View>
       )}
-      <View style={styles.timeline}>
-        <Text style={styles.timelineHeading}>Progress updates</Text>
-        {selectedJob.updates.map((update, index) => (
-          <JobUpdateRow
-            key={update.id}
-            isAdmin={isAdmin}
-            job={selectedJob}
-            isLast={index === selectedJob.updates.length - 1}
-            onOpenMedia={onOpenMedia}
-            onSave={onEditUpdate}
-            update={update}
-          />
-        ))}
-      </View>
     </ScrollView>
   );
 }
@@ -2984,21 +2977,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#dce5df',
   },
-  jobListItem: {
-    minHeight: 68,
+  projectListCard: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#dce5df',
-    padding: 10,
     marginBottom: 8,
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+  },
+  jobListItem: {
+    minHeight: 68,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
   },
   activeJobListItem: {
     borderColor: '#0f766e',
     backgroundColor: '#e3f5f1',
+  },
+  projectProgressPanel: {
+    borderTopWidth: 1,
+    borderTopColor: '#cce3df',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    backgroundColor: '#ffffff',
+  },
+  projectProgressHeading: {
+    color: '#101820',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 14,
   },
   historyHeader: {
     minHeight: 58,
@@ -3412,22 +3421,6 @@ const styles = StyleSheet.create({
   },
   activeStatusButtonText: {
     color: '#ffffff',
-  },
-  timeline: {
-    marginHorizontal: 14,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 8,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#dce5df',
-  },
-  timelineHeading: {
-    color: '#101820',
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 18,
   },
   timelineItem: {
     flexDirection: 'row',
