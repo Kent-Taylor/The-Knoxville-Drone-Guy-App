@@ -33,6 +33,11 @@ export type ChatMessage = {
   body: string;
   createdAt: number;
   attachment?: Attachment;
+  reference?: {
+    type: 'shoot_request';
+    id: string;
+    title: string;
+  };
 };
 
 export type ChatThread = {

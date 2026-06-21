@@ -54,6 +54,19 @@ service cloud.firestore {
         && request.resource.data.createdAt is number;
     }
 
+    function isValidShootRequestClientUpdate() {
+      return signedIn()
+        && resource.data.clientId == request.auth.uid
+        && resource.data.status != 'accepted'
+        && request.resource.data.clientId == resource.data.clientId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title is string
+        && request.resource.data.requestedWhen is string
+        && request.resource.data.projectAddress is string
+        && request.resource.data.details is string;
+    }
+
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
       allow create: if isAdmin() || isValidClientProfile(userId);
@@ -89,7 +102,8 @@ service cloud.firestore {
     match /shootRequests/{requestId} {
       allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
       allow create: if isValidShootRequestCreate();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || isValidShootRequestClientUpdate();
+      allow delete: if isAdmin();
     }
   }
 }

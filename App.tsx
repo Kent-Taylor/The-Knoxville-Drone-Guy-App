@@ -196,6 +196,8 @@ const initialData: AppData = {
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'notifications' | 'account';
 type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
+type ChatReference = NonNullable<ChatMessage['reference']>;
+type ShootRequestEdit = Pick<ShootRequest, 'title' | 'requestedWhen' | 'projectAddress' | 'details'>;
 type DrivingRouteResult = {
   distanceMiles: number;
   travelTimeMinutes: number;
@@ -241,6 +243,8 @@ export default function App() {
   const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
   const [chatViewedAtByUser, setChatViewedAtByUser] = useState<Record<string, number>>({});
   const [seenAlertKeysByUser, setSeenAlertKeysByUser] = useState<Record<string, string[]>>({});
+  const [pendingChatReference, setPendingChatReference] = useState<ChatReference | undefined>();
+  const [focusedRequestId, setFocusedRequestId] = useState<string | undefined>();
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -436,7 +440,7 @@ export default function App() {
     setActiveTab('jobs');
   };
 
-  const sendMessage = async (body: string, attachment?: Attachment) => {
+  const sendMessage = async (body: string, attachment?: Attachment, reference = pendingChatReference) => {
     if (!selectedThread || !user) return;
     const trimmed = body.trim();
     if (!trimmed && !attachment) return;
@@ -449,17 +453,28 @@ export default function App() {
       senderName: user.displayName,
       body: trimmed || (savedAttachment?.type === 'video' ? 'Sent a video.' : 'Sent a photo.'),
       attachment: savedAttachment,
+      reference,
       createdAt: Date.now(),
     };
+    const shouldMarkRequestNeedsDetails =
+      reference?.type === 'shoot_request' &&
+      isAdmin &&
+      data.shootRequests.find((request) => request.id === reference.id)?.status !== 'accepted';
     if (isFirebaseConfigured && db) {
       await addDoc(collection(db, 'chatThreads', selectedThread.id, 'messages'), message);
       await updateDoc(doc(db, 'chatThreads', selectedThread.id), {
         lastMessage: message.body,
         updatedAt: message.createdAt,
       });
+      if (shouldMarkRequestNeedsDetails) {
+        await updateDoc(doc(db, 'shootRequests', reference.id), { status: 'needs_details' });
+      }
     }
     setData((current) => ({
       ...current,
+      shootRequests: shouldMarkRequestNeedsDetails
+        ? current.shootRequests.map((item) => (item.id === reference.id ? { ...item, status: 'needs_details' } : item))
+        : current.shootRequests,
       messages: [...current.messages, message],
       threads: current.threads.map((thread) =>
         thread.id === selectedThread.id
@@ -467,6 +482,7 @@ export default function App() {
           : thread,
       ),
     }));
+    if (reference?.id === pendingChatReference?.id) setPendingChatReference(undefined);
     scheduleLocalNotification('New chat message', `${message.senderName}: ${message.body}`);
   };
 
@@ -670,39 +686,64 @@ export default function App() {
     scheduleLocalNotification('Shoot accepted', `${request.clientName} would be notified that the project was accepted.`);
   };
 
-  const requestShootDetails = async (request: ShootRequest) => {
-    const messageText = `Thanks for the request for "${request.title}". Can you send a few more details or a better day and time?`;
+  const updateShootRequest = async (request: ShootRequest, changes: ShootRequestEdit) => {
+    const trimmedChanges = {
+      title: changes.title.trim(),
+      requestedWhen: changes.requestedWhen.trim(),
+      projectAddress: changes.projectAddress.trim(),
+      details: changes.details.trim(),
+    };
+    if (!trimmedChanges.title || !trimmedChanges.requestedWhen || !trimmedChanges.projectAddress || !trimmedChanges.details) {
+      Alert.alert('Request not saved', 'Project name, when, address, and description are required.');
+      return;
+    }
+    const addressChanged = trimmedChanges.projectAddress !== request.projectAddress;
+    const route = addressChanged ? await calculateDrivingRoute(HOME_BASE_ADDRESS, trimmedChanges.projectAddress) : null;
+    const updatedFields = {
+      ...trimmedChanges,
+      ...(addressChanged
+        ? {
+            routeDistanceMiles: route?.distanceMiles,
+            routeTravelTimeMinutes: route?.travelTimeMinutes,
+            routeDistanceStatus: route ? 'ready' as const : 'failed' as const,
+            routeDistanceUpdatedAt: Date.now(),
+          }
+        : {}),
+    };
     if (isFirebaseConfigured && db) {
-      await updateDoc(doc(db, 'shootRequests', request.id), { status: 'needs_details' });
+      await updateDoc(doc(db, 'shootRequests', request.id), updatedFields);
     }
+    setData((current) => ({
+      ...current,
+      shootRequests: current.shootRequests.map((item) => (item.id === request.id ? { ...item, ...updatedFields } : item)),
+    }));
+  };
+
+  const requestShootDetails = async (request: ShootRequest) => {
     const existingThread = data.threads.find((thread) => thread.clientId === request.clientId);
-    if (existingThread) {
-      const message: ChatMessage = {
-        id: `message-${Date.now()}`,
-        threadId: existingThread.id,
-        senderId: adminUser.uid,
-        senderName: adminUser.displayName,
-        body: messageText,
-        createdAt: Date.now(),
-      };
+    const thread =
+      existingThread ??
+      ({
+        id: `thread-${request.clientId}`,
+        clientId: request.clientId,
+        clientName: request.clientName,
+        lastMessage: '',
+        updatedAt: Date.now(),
+      } satisfies ChatThread);
+    if (!existingThread) {
       if (isFirebaseConfigured && db) {
-        await addDoc(collection(db, 'chatThreads', existingThread.id, 'messages'), message);
-        await updateDoc(doc(db, 'chatThreads', existingThread.id), {
-          lastMessage: message.body,
-          updatedAt: message.createdAt,
-        });
+        await setDoc(doc(db, 'chatThreads', thread.id), thread);
       }
-      setData((current) => ({
-        ...current,
-        shootRequests: current.shootRequests.map((item) => (item.id === request.id ? { ...item, status: 'needs_details' } : item)),
-        messages: [...current.messages, message],
-        threads: current.threads.map((thread) =>
-          thread.id === existingThread.id ? { ...thread, lastMessage: message.body, updatedAt: message.createdAt } : thread,
-        ),
-      }));
-      setSelectedThreadId(existingThread.id);
-      setActiveTab('chat');
+      setData((current) => ({ ...current, threads: [thread, ...current.threads] }));
     }
+    setPendingChatReference({ type: 'shoot_request', id: request.id, title: request.title });
+    setSelectedThreadId(thread.id);
+    setActiveTab('chat');
+  };
+
+  const openShootRequestReference = (requestId: string) => {
+    setFocusedRequestId(requestId);
+    setActiveTab('jobs');
   };
 
   const renderContent = () => {
@@ -713,8 +754,11 @@ export default function App() {
         <ChatScreen
           isAdmin={isAdmin}
           messages={data.messages.filter((message) => message.threadId === selectedThread?.id)}
+          onClearReference={() => setPendingChatReference(undefined)}
           onOpenMedia={setSelectedMedia}
+          onOpenReference={openShootRequestReference}
           onSend={sendMessage}
+          pendingReference={pendingChatReference}
           selectedThread={selectedThread}
           setSelectedThreadId={setSelectedThreadId}
           threads={visibleThreads}
@@ -732,8 +776,10 @@ export default function App() {
           onRequestShootDetails={requestShootDetails}
           onSubmitShootRequest={submitShootRequest}
           onEditUpdate={editJobUpdate}
+          onUpdateShootRequest={updateShootRequest}
           onUpdateStatus={updateJobStatus}
           onUpdateTitle={updateJobTitle}
+          focusedRequestId={focusedRequestId}
           selectedJob={selectedJob}
           setSelectedJobId={setSelectedJobId}
           shootRequests={visibleShootRequests}
@@ -837,8 +883,11 @@ function WebsiteScreen() {
 function ChatScreen({
   isAdmin,
   messages,
+  onClearReference,
   onOpenMedia,
+  onOpenReference,
   onSend,
+  pendingReference,
   selectedThread,
   setSelectedThreadId,
   threads,
@@ -846,8 +895,11 @@ function ChatScreen({
 }: {
   isAdmin: boolean;
   messages: ChatMessage[];
+  onClearReference: () => void;
   onOpenMedia: (attachment: Attachment) => void;
-  onSend: (body: string, attachment?: Attachment) => Promise<void>;
+  onOpenReference: (requestId: string) => void;
+  onSend: (body: string, attachment?: Attachment, reference?: ChatReference) => Promise<void>;
+  pendingReference?: ChatReference;
   selectedThread?: ChatThread;
   setSelectedThreadId: (threadId: string) => void;
   threads: ChatThread[];
@@ -867,7 +919,7 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      await onSend(body, assetToAttachment(result.assets[0]));
+      await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
       setBody('');
       Keyboard.dismiss();
     }
@@ -885,7 +937,7 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      await onSend(body, assetToAttachment(result.assets[0]));
+      await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
       setBody('');
       Keyboard.dismiss();
     }
@@ -925,6 +977,11 @@ function ChatScreen({
           const mine = message.senderId === user.uid;
           return (
             <View key={message.id} style={[styles.messageBubble, mine ? styles.myMessage : styles.theirMessage]}>
+              {message.reference?.type === 'shoot_request' && (
+                <Pressable style={styles.messageReference} onPress={() => onOpenReference(message.reference!.id)}>
+                  <Text style={styles.messageReferenceText}>Referencing Project Request: {message.reference.title}</Text>
+                </Pressable>
+              )}
               <Text style={styles.messageSender}>{message.senderName}</Text>
               <Text style={styles.messageText}>{message.body}</Text>
               {message.attachment?.type === 'image' && (
@@ -940,30 +997,42 @@ function ChatScreen({
         })}
       </ScrollView>
       <View style={styles.composer}>
-        <Pressable style={styles.iconButton} onPress={attachFromCamera}>
-          <Ionicons name="camera-outline" size={22} color="#0f766e" />
-        </Pressable>
-        <Pressable style={styles.iconButton} onPress={attachFromLibrary}>
-          <Ionicons name="image-outline" size={22} color="#0f766e" />
-        </Pressable>
-        <TextInput
-          style={[styles.input, styles.composerInput]}
-          placeholder="Type a message"
-          value={body}
-          onChangeText={setBody}
-          multiline
-        />
-        <Pressable
-          style={[styles.sendButton, !body.trim() && styles.disabledButton]}
-          onPress={async () => {
-            await onSend(body);
-            setBody('');
-            Keyboard.dismiss();
-          }}
-          disabled={!body.trim()}
-        >
-          <Ionicons name="send" size={19} color="#ffffff" />
-        </Pressable>
+        {pendingReference && (
+          <View style={styles.composerReference}>
+            <Pressable style={styles.flexOne} onPress={() => onOpenReference(pendingReference.id)}>
+              <Text style={styles.composerReferenceText}>Referencing Project Request: {pendingReference.title}</Text>
+            </Pressable>
+            <Pressable style={styles.composerReferenceClose} onPress={onClearReference}>
+              <Ionicons name="close-outline" size={18} color="#0f766e" />
+            </Pressable>
+          </View>
+        )}
+        <View style={styles.composerRow}>
+          <Pressable style={styles.iconButton} onPress={attachFromCamera}>
+            <Ionicons name="camera-outline" size={22} color="#0f766e" />
+          </Pressable>
+          <Pressable style={styles.iconButton} onPress={attachFromLibrary}>
+            <Ionicons name="image-outline" size={22} color="#0f766e" />
+          </Pressable>
+          <TextInput
+            style={[styles.input, styles.composerInput]}
+            placeholder="Type a message"
+            value={body}
+            onChangeText={setBody}
+            multiline
+          />
+          <Pressable
+            style={[styles.sendButton, !body.trim() && styles.disabledButton]}
+            onPress={async () => {
+              await onSend(body, undefined, pendingReference);
+              setBody('');
+              Keyboard.dismiss();
+            }}
+            disabled={!body.trim()}
+          >
+            <Ionicons name="send" size={19} color="#ffffff" />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -1034,6 +1103,7 @@ function NotificationsScreen({
 }
 
 function JobsScreen({
+  focusedRequestId,
   isAdmin,
   jobs,
   onAcceptShootRequest,
@@ -1041,6 +1111,7 @@ function JobsScreen({
   onOpenMedia,
   onRequestShootDetails,
   onSubmitShootRequest,
+  onUpdateShootRequest,
   onUpdateStatus,
   onUpdateTitle,
   selectedJob,
@@ -1048,6 +1119,7 @@ function JobsScreen({
   shootRequests,
   user,
 }: {
+  focusedRequestId?: string;
   isAdmin: boolean;
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
@@ -1055,6 +1127,7 @@ function JobsScreen({
   onOpenMedia: (attachment: Attachment) => void;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
   onSubmitShootRequest: (request: ShootRequestDraft) => Promise<void>;
+  onUpdateShootRequest: (request: ShootRequest, changes: ShootRequestEdit) => Promise<void>;
   onUpdateStatus: (job: Job, status: JobStatus, note?: string, attachment?: Attachment) => Promise<void>;
   onUpdateTitle: (job: Job, title: string) => Promise<void>;
   selectedJob?: Job;
@@ -1067,6 +1140,13 @@ function JobsScreen({
   const [pendingMedia, setPendingMedia] = useState<Attachment | null>(null);
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const [requestDraft, setRequestDraft] = useState<ShootRequestEdit>({
+    title: '',
+    requestedWhen: '',
+    projectAddress: '',
+    details: '',
+  });
 
   useEffect(() => {
     setDraftTitle(selectedJob?.title ?? '');
@@ -1110,6 +1190,21 @@ function JobsScreen({
     onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', pendingMedia);
     setPendingMedia(null);
     setNote('');
+  };
+
+  const startEditingRequest = (request: ShootRequest) => {
+    setEditingRequestId(request.id);
+    setRequestDraft({
+      title: request.title,
+      requestedWhen: request.requestedWhen,
+      projectAddress: request.projectAddress,
+      details: request.details,
+    });
+  };
+
+  const saveRequestEdit = async (request: ShootRequest) => {
+    await onUpdateShootRequest(request, requestDraft);
+    setEditingRequestId(null);
   };
 
   const renderProjectCard = (job: Job, isHistory = false) => {
@@ -1197,16 +1292,25 @@ function JobsScreen({
       keyboardShouldPersistTaps="handled"
     >
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
-      {isAdmin && (
+      {(isAdmin || shootRequests.length > 0) && (
         <View style={styles.adminPanel}>
-          <Text style={styles.smallTitle}>Project Shoot Requests</Text>
+          <Text style={styles.smallTitle}>{isAdmin ? 'Project Shoot Requests' : 'My Project Requests'}</Text>
           {shootRequests.length === 0 ? (
             <Text style={styles.muted}>New client requests will appear here.</Text>
           ) : (
             shootRequests.map((request) => {
               const accepted = request.status === 'accepted';
+              const editing = editingRequestId === request.id;
+              const canEdit = isAdmin || request.status !== 'accepted';
               return (
-                <View key={request.id} style={[styles.requestCard, accepted && styles.acceptedRequestCard]}>
+                <View
+                  key={request.id}
+                  style={[
+                    styles.requestCard,
+                    accepted && styles.acceptedRequestCard,
+                    focusedRequestId === request.id && styles.focusedRequestCard,
+                  ]}
+                >
                   <View style={styles.requestHeader}>
                     <View style={styles.flexOne}>
                       <Text style={styles.requestTitle}>{request.title}</Text>
@@ -1216,28 +1320,69 @@ function JobsScreen({
                       <Text style={styles.requestStatusText}>{requestStatusLabel(request.status)}</Text>
                     </View>
                   </View>
-                  {!accepted && (
+                  {editing ? (
                     <>
-                      <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
-                      <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
-                      <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
-                      {!!request.videoEditFormat && (
-                        <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
-                      )}
-                      {request.isRecurring && (
-                        <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
-                      )}
-                      {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
-                      {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
-                      <RouteDistancePanel
-                        projectAddress={request.projectAddress}
-                        routeDistanceMiles={request.routeDistanceMiles}
-                        routeTravelTimeMinutes={request.routeTravelTimeMinutes}
-                        routeDistanceStatus={request.routeDistanceStatus}
+                      <TextInput
+                        style={styles.input}
+                        value={requestDraft.title}
+                        onChangeText={(title) => setRequestDraft((current) => ({ ...current, title }))}
+                        placeholder="Project name"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={requestDraft.requestedWhen}
+                        onChangeText={(requestedWhen) => setRequestDraft((current) => ({ ...current, requestedWhen }))}
+                        placeholder="When"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={requestDraft.projectAddress}
+                        onChangeText={(projectAddress) => setRequestDraft((current) => ({ ...current, projectAddress }))}
+                        placeholder="Project address"
+                      />
+                      <TextInput
+                        style={[styles.input, styles.noteInput]}
+                        value={requestDraft.details}
+                        onChangeText={(details) => setRequestDraft((current) => ({ ...current, details }))}
+                        placeholder="Describe the project"
+                        multiline
                       />
                       <View style={styles.rowActions}>
-                        <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
-                        <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
+                        <SecondaryButton label="Cancel" icon="close-outline" onPress={() => setEditingRequestId(null)} />
+                        <SecondaryButton label="Save" icon="save-outline" onPress={() => saveRequestEdit(request)} />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {!accepted && (
+                        <>
+                          <Text style={styles.timelineText}>When: {request.requestedWhen}</Text>
+                          <Text style={styles.timelineText}>Address: {request.projectAddress}</Text>
+                          <Text style={styles.timelineText}>Services: {formatServices(request.services)}</Text>
+                          {!!request.videoEditFormat && (
+                            <Text style={styles.timelineText}>Video Edit: {formatVideoEditDetails(request)}</Text>
+                          )}
+                          {request.isRecurring && (
+                            <Text style={styles.timelineText}>Recurring: {formatRecurrence(request)}</Text>
+                          )}
+                          {!!request.otherDescription && <Text style={styles.timelineText}>Other: {request.otherDescription}</Text>}
+                          {!!request.details && <Text style={styles.timelineText}>{request.details}</Text>}
+                          <RouteDistancePanel
+                            projectAddress={request.projectAddress}
+                            routeDistanceMiles={request.routeDistanceMiles}
+                            routeTravelTimeMinutes={request.routeTravelTimeMinutes}
+                            routeDistanceStatus={request.routeDistanceStatus}
+                          />
+                        </>
+                      )}
+                      <View style={styles.rowActions}>
+                        {isAdmin && (
+                          <SecondaryButton label="Message" icon="chatbubble-outline" onPress={() => onRequestShootDetails(request)} />
+                        )}
+                        {canEdit && <SecondaryButton label="Edit" icon="create-outline" onPress={() => startEditingRequest(request)} />}
+                        {isAdmin && !accepted && (
+                          <SecondaryButton label="Accept" icon="checkmark-outline" onPress={() => onAcceptShootRequest(request)} />
+                        )}
                       </View>
                     </>
                   )}
@@ -2996,6 +3141,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  messageReference: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: '#f0f8f6',
+  },
+  messageReferenceText: {
+    color: '#0f766e',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   messageImage: {
     height: 150,
     borderRadius: 8,
@@ -3067,15 +3224,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   composer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 16,
     backgroundColor: '#ffffff',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#dce5df',
+  },
+  composerReference: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c7e3dc',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f0f8f6',
+  },
+  composerReferenceText: {
+    color: '#0f766e',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  composerReferenceClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e3f5f1',
+  },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
   },
   iconButton: {
     width: 40,
@@ -3440,6 +3625,10 @@ const styles = StyleSheet.create({
   },
   acceptedRequestCard: {
     backgroundColor: '#f7fbfb',
+  },
+  focusedRequestCard: {
+    borderColor: '#0f766e',
+    borderWidth: 1.5,
   },
   requestHeader: {
     flexDirection: 'row',
