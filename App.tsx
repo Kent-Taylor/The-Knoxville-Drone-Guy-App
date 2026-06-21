@@ -839,7 +839,7 @@ export default function App() {
       </View>
       {!isFirebaseConfigured && (
         <View style={styles.notice}>
-          <Ionicons name="construct-outline" size={22} color="#0f766e" />
+          <Ionicons name="construct-outline" size={22} color={theme.indigo} />
           <Text style={styles.noticeText}>Demo mode: add Firebase env values to connect live auth, chat, projects, media, and notifications.</Text>
         </View>
       )}
@@ -867,7 +867,7 @@ export default function App() {
               }}
             >
               <View style={styles.tabIconWrap}>
-                <Ionicons name={tab.icon} size={22} color={active ? '#0f766e' : '#687076'} />
+                <Ionicons name={tab.icon} size={22} color={active ? theme.indigo : theme.muted} />
                 {tab.key === 'chat' && unreadMessageCount > 0 && (
                   <View style={styles.tabBadge}>
                     <Text style={styles.tabBadgeText}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</Text>
@@ -1030,16 +1030,16 @@ function ChatScreen({
               <Text style={styles.composerReferenceText}>Referencing Project Request: {pendingReference.title}</Text>
             </Pressable>
             <Pressable style={styles.composerReferenceClose} onPress={onClearReference}>
-              <Ionicons name="close-outline" size={18} color="#0f766e" />
+              <Ionicons name="close-outline" size={18} color={theme.pink} />
             </Pressable>
           </View>
         )}
         <View style={styles.composerRow}>
           <Pressable style={styles.iconButton} onPress={attachFromCamera}>
-            <Ionicons name="camera-outline" size={22} color="#0f766e" />
+            <Ionicons name="camera-outline" size={22} color={theme.indigo} />
           </Pressable>
           <Pressable style={styles.iconButton} onPress={attachFromLibrary}>
-            <Ionicons name="image-outline" size={22} color="#0f766e" />
+            <Ionicons name="image-outline" size={22} color={theme.indigo} />
           </Pressable>
           <TextInput
             style={[styles.input, styles.composerInput]}
@@ -1097,7 +1097,7 @@ function NotificationsScreen({
         </View>
         {!hasAlerts ? (
           <View style={styles.historyEmpty}>
-            <Ionicons name="checkmark-circle-outline" size={18} color="#687076" />
+            <Ionicons name="checkmark-circle-outline" size={18} color={theme.muted} />
             <Text style={[styles.muted, styles.historyEmptyText]}>No new notifications right now.</Text>
           </View>
         ) : (
@@ -1108,7 +1108,7 @@ function NotificationsScreen({
                   <Ionicons
                     name={isAdmin ? 'briefcase-outline' : request.status === 'accepted' ? 'checkmark-circle-outline' : 'information-circle-outline'}
                     size={20}
-                    color="#0f766e"
+                    color={theme.indigo}
                   />
                 </View>
                 <View style={styles.flexOne}>
@@ -1119,7 +1119,7 @@ function NotificationsScreen({
                     {request.title} · {request.requesterName || request.clientName || user.displayName}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward-outline" size={18} color="#687076" />
+                <Ionicons name="chevron-forward-outline" size={18} color={theme.muted} />
               </Pressable>
             ))}
           </>
@@ -1251,7 +1251,7 @@ function JobsScreen({
           <View style={[styles.statusPillSmall, { backgroundColor: statusColors.backgroundColor }]}>
             <Text style={[styles.statusTextSmall, { color: statusColors.color }]}>{statusLabel(job.status)}</Text>
           </View>
-          <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={18} color="#687076" />
+          <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={18} color={theme.muted} />
         </Pressable>
         {selected && (
           <View style={styles.projectProgressPanel}>
@@ -1299,7 +1299,7 @@ function JobsScreen({
                 </View>
               ) : (
                 <View style={styles.projectLocationClosed}>
-                  <Ionicons name="location-outline" size={20} color="#687076" />
+                  <Ionicons name="location-outline" size={20} color={theme.muted} />
                   <Text style={[styles.muted, styles.projectLocationText]}>
                     Live map is available only while the job is on the way or actively shooting.
                   </Text>
@@ -1432,7 +1432,7 @@ function JobsScreen({
           <View style={styles.historyCountPill}>
             <Text style={styles.historyCountText}>{activeJobs.length}</Text>
           </View>
-          <Ionicons name={projectsExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
+          <Ionicons name={projectsExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
         </Pressable>
         {projectsExpanded && (
           activeJobs.length === 0 ? (
@@ -1452,12 +1452,12 @@ function JobsScreen({
           <View style={styles.historyCountPill}>
             <Text style={styles.historyCountText}>{historyJobs.length}</Text>
           </View>
-          <Ionicons name={historyExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
+          <Ionicons name={historyExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
         </Pressable>
         {historyExpanded && (
           historyJobs.length === 0 ? (
             <View style={styles.historyEmpty}>
-              <Ionicons name="archive-outline" size={18} color="#687076" />
+              <Ionicons name="archive-outline" size={18} color={theme.muted} />
               <Text style={[styles.muted, styles.historyEmptyText]}>
                 Projects marked Job Completed will appear here.
               </Text>
@@ -1515,7 +1515,7 @@ function JobsScreen({
           {pendingMedia && (
             <View style={styles.pendingMediaPanel}>
               <View style={styles.pendingMediaInfo}>
-                <Ionicons name={pendingMedia.type === 'video' ? 'videocam-outline' : 'image-outline'} size={20} color="#0f766e" />
+                <Ionicons name={pendingMedia.type === 'video' ? 'videocam-outline' : 'image-outline'} size={20} color={theme.indigo} />
                 <Text style={styles.pendingMediaText}>
                   {pendingMedia.type === 'video' ? 'Video ready to post' : 'Photo ready to post'}
                 </Text>
@@ -1702,7 +1702,7 @@ function ShootRequestForm({
           <Text style={styles.accordionTitle}>Request a Project Shoot</Text>
           <Text style={styles.accordionSubtitle}>Send project details, timing, and scope.</Text>
         </View>
-        <Ionicons name={requestExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color="#687076" />
+        <Ionicons name={requestExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
       </Pressable>
       {showSentBanner && (
         <View style={styles.requestSentBanner}>
@@ -1737,11 +1737,11 @@ function ShootRequestForm({
             style={[styles.formSelectRow, hasError('requestedDate') && styles.validationErrorBorder]}
             onPress={() => setShowDatePicker((current) => !current)}
           >
-            <Ionicons name="calendar-outline" size={22} color="#8b95a1" />
+            <Ionicons name="calendar-outline" size={22} color={theme.muted} />
             <Text style={[styles.formSelectText, !requestedDate && styles.formPlaceholderText]}>
               {requestedDate ? formatProjectDate(requestedDate) : 'Select Date'}
             </Text>
-            <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+            <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
           </Pressable>
           {showDatePicker && (
             <DateTimePicker
@@ -1762,11 +1762,11 @@ function ShootRequestForm({
             style={[styles.formSelectRow, hasError('requestedTime') && styles.validationErrorBorder]}
             onPress={() => setShowTimePicker((current) => !current)}
           >
-            <Ionicons name="time-outline" size={22} color="#8b95a1" />
+            <Ionicons name="time-outline" size={22} color={theme.muted} />
             <Text style={[styles.formSelectText, !requestedTime && styles.formPlaceholderText]}>
               {requestedTime ? formatClockTime(requestedTime) : 'Select Time'}
             </Text>
-            <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+            <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
           </Pressable>
           {showTimePicker && (
             <DateTimePicker
@@ -1804,7 +1804,7 @@ function ShootRequestForm({
                     clearValidationError('projectAddress');
                   }}
                 >
-                  <Ionicons name="location-outline" size={16} color="#0f766e" />
+                  <Ionicons name="location-outline" size={16} color={theme.indigo} />
                   <Text style={styles.suggestionText}>{address}</Text>
                 </Pressable>
               ))}
@@ -1820,7 +1820,7 @@ function ShootRequestForm({
                   style={[styles.serviceButton, active && styles.activeServiceButton]}
                   onPress={() => toggleService(service.value)}
                 >
-                  <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : '#0f766e'} />
+                  <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : theme.indigo} />
                   <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{service.label}</Text>
                 </Pressable>
               );
@@ -1833,11 +1833,11 @@ function ShootRequestForm({
                 style={[styles.formSelectRow, hasError('videoEditFormat') && styles.validationErrorBorder]}
                 onPress={() => setShowVideoEditFormatPicker((current) => !current)}
               >
-                <Ionicons name="film-outline" size={22} color="#8b95a1" />
+                <Ionicons name="film-outline" size={22} color={theme.muted} />
                 <Text style={[styles.formSelectText, !videoEditFormat && styles.formPlaceholderText]}>
                   {formatVideoEditFormat(videoEditFormat)}
                 </Text>
-                <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+                <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
               </Pressable>
               {showVideoEditFormatPicker && (
                 <View style={styles.selectOptionList}>
@@ -1857,14 +1857,14 @@ function ShootRequestForm({
                       }}
                     >
                       <Text style={styles.selectOptionText}>{format.label}</Text>
-                      {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                      {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color={theme.indigo} />}
                     </Pressable>
                   ))}
                 </View>
               )}
               {videoEditFormat === 'other' && (
                 <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('videoEditOther') && styles.validationErrorBorder]}>
-                  <Ionicons name="create-outline" size={22} color="#8b95a1" />
+                  <Ionicons name="create-outline" size={22} color={theme.muted} />
                   <TextInput
                     style={[styles.formTextInput, styles.formTextArea]}
                     placeholder="Describe the video type"
@@ -1885,11 +1885,11 @@ function ShootRequestForm({
                     style={[styles.formSelectRow, hasError('finishedVideoLength') && styles.validationErrorBorder]}
                     onPress={() => setShowFinishedVideoLengthPicker((current) => !current)}
                   >
-                    <Ionicons name="time-outline" size={22} color="#8b95a1" />
+                    <Ionicons name="time-outline" size={22} color={theme.muted} />
                     <Text style={[styles.formSelectText, !finishedVideoLength && styles.formPlaceholderText]}>
                       {formatFinishedVideoLength(finishedVideoLength)}
                     </Text>
-                    <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+                    <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
                   </Pressable>
                   {showFinishedVideoLengthPicker && (
                     <View style={styles.selectOptionList}>
@@ -1906,7 +1906,7 @@ function ShootRequestForm({
                           }}
                         >
                           <Text style={styles.selectOptionText}>{length.label}</Text>
-                          {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color="#0f766e" />}
+                          {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color={theme.indigo} />}
                         </Pressable>
                       ))}
                     </View>
@@ -1940,7 +1940,7 @@ function ShootRequestForm({
             />
           )}
           <View style={[styles.formInputRow, styles.formTextAreaRow, hasError('details') && styles.validationErrorBorder]}>
-            <Ionicons name="chatbubble-outline" size={22} color="#8b95a1" />
+            <Ionicons name="chatbubble-outline" size={22} color={theme.muted} />
             <TextInput
               style={[styles.formTextInput, styles.formTextArea]}
               placeholder="Describe the project the best you can"
@@ -1967,7 +1967,7 @@ function ShootRequestForm({
               }
             }}
           >
-            <Ionicons name={isRecurring ? 'radio-button-on' : 'ellipse-outline'} size={30} color="#0f766e" />
+            <Ionicons name={isRecurring ? 'radio-button-on' : 'ellipse-outline'} size={30} color={theme.indigo} />
             <View style={styles.flexOne}>
               <Text style={styles.radioText}>Recurring shoot</Text>
               <Text style={styles.radioSubText}>This is an ongoing or repeating project</Text>
@@ -2012,11 +2012,11 @@ function ShootRequestForm({
                 style={[styles.formSelectRow, hasError('recurrenceEndDate') && styles.validationErrorBorder]}
                 onPress={() => setShowRecurrenceEndPicker((current) => !current)}
               >
-                <Ionicons name="calendar-clear-outline" size={22} color="#8b95a1" />
+                <Ionicons name="calendar-clear-outline" size={22} color={theme.muted} />
                 <Text style={[styles.formSelectText, !recurrenceEndDate && styles.formPlaceholderText]}>
                   {recurrenceEndDate ? `Ends ${formatProjectDate(recurrenceEndDate)}` : 'Select End Date'}
                 </Text>
-                <Ionicons name={showRecurrenceEndPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color="#8b95a1" />
+                <Ionicons name={showRecurrenceEndPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
               </Pressable>
               {showRecurrenceEndPicker && (
                 <DateTimePicker
@@ -2188,14 +2188,14 @@ function JobUpdateRow({
               <Text style={styles.timelineTitle}>{statusLabel(update.status)}</Text>
               {isAdmin && (
                 <Pressable style={styles.timelineEditButton} onPress={() => setEditing(true)}>
-                  <Ionicons name="create-outline" size={17} color="#0f766e" />
+                  <Ionicons name="create-outline" size={17} color={theme.indigo} />
                   <Text style={styles.timelineEditText}>Edit</Text>
                 </Pressable>
               )}
             </View>
             <Text style={styles.timelineText}>{update.note}</Text>
             <View style={styles.timelineTimeRow}>
-              <Ionicons name="time-outline" size={18} color="#8b95a1" />
+              <Ionicons name="time-outline" size={18} color={theme.muted} />
               <Text style={styles.timelineTime}>{formatDateTime(new Date(update.createdAt))}</Text>
             </View>
             {update.attachment?.type === 'image' && (
@@ -2460,7 +2460,7 @@ function AccountScreen({
                   style={[styles.serviceButton, active && styles.activeServiceButton]}
                   onPress={() => setNotificationPreference(option.value)}
                 >
-                  <Ionicons name={option.icon} size={19} color={active ? '#ffffff' : '#0f766e'} />
+                  <Ionicons name={option.icon} size={19} color={active ? '#ffffff' : theme.indigo} />
                   <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{option.label}</Text>
                 </Pressable>
               );
@@ -2482,7 +2482,7 @@ function AccountScreen({
           onPress={() => setOpenLegal((current) => (current === 'terms' ? null : 'terms'))}
         >
           <Text style={styles.legalLinkText}>Terms of Service</Text>
-          <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color="#0f766e" />
+          <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
         </Pressable>
         {openLegal === 'terms' && (
           <Text style={styles.legalText}>
@@ -2494,7 +2494,7 @@ function AccountScreen({
           onPress={() => setOpenLegal((current) => (current === 'privacy' ? null : 'privacy'))}
         >
           <Text style={styles.legalLinkText}>Privacy Policy</Text>
-          <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color="#0f766e" />
+          <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
         </Pressable>
         {openLegal === 'privacy' && (
           <Text style={styles.legalText}>
@@ -2591,12 +2591,12 @@ function RouteDistancePanel({
 function MediaAttachmentButton({ attachment, onPress }: { attachment: Attachment; onPress: () => void }) {
   return (
     <Pressable style={styles.mediaAttachmentButton} onPress={onPress}>
-      <Ionicons name="play-circle-outline" size={24} color="#0f766e" />
+      <Ionicons name="play-circle-outline" size={24} color={theme.indigo} />
       <View style={styles.flexOne}>
         <Text style={styles.mediaAttachmentTitle}>Video attached</Text>
         <Text style={styles.mediaAttachmentName}>{attachment.name ?? 'Open video'}</Text>
       </View>
-      <Ionicons name="expand-outline" size={18} color="#8b95a1" />
+      <Ionicons name="expand-outline" size={18} color={theme.muted} />
     </Pressable>
   );
 }
@@ -2676,7 +2676,7 @@ function IconTextInput({
 }) {
   return (
     <View style={[styles.formInputRow, multiline && styles.formTextAreaRow, error && styles.validationErrorBorder]}>
-      <Ionicons name={icon} size={22} color="#8b95a1" />
+      <Ionicons name={icon} size={22} color={theme.muted} />
       <TextInput
         style={[styles.formTextInput, multiline && styles.formTextArea]}
         placeholder={placeholder}
@@ -2693,7 +2693,7 @@ function IconTextInput({
 function SecondaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   return (
     <Pressable style={styles.secondaryButton} onPress={onPress}>
-      <Ionicons name={icon} size={17} color="#0f766e" />
+      <Ionicons name={icon} size={17} color={theme.indigo} />
       <Text style={styles.secondaryButtonText}>{label}</Text>
     </Pressable>
   );
@@ -2712,7 +2712,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 function ChecklistItem({ text }: { text: string }) {
   return (
     <View style={styles.checkItem}>
-      <Ionicons name="checkmark-circle-outline" size={18} color="#0f766e" />
+      <Ionicons name="checkmark-circle-outline" size={18} color={theme.indigo} />
       <Text style={styles.checkText}>{text}</Text>
     </View>
   );
@@ -3014,30 +3014,44 @@ async function scheduleLocalNotification(title: string, body: string) {
   });
 }
 
+const theme = {
+  navy: '#15115f',
+  indigo: '#2f20a2',
+  purple: '#5a2ed6',
+  pink: '#ff5c8a',
+  coral: '#ff706f',
+  ink: '#141827',
+  muted: '#6e7283',
+  line: '#dedff0',
+  surface: '#ffffff',
+  appBg: '#f0f1f7',
+  softPurple: '#f3efff',
+  softPink: '#fff0f5',
+};
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#fbfcfc',
+    backgroundColor: theme.appBg,
   },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#dce5df',
+    backgroundColor: theme.navy,
+    borderBottomWidth: 0,
   },
   kicker: {
-    color: '#0f766e',
+    color: '#ff9fbd',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   title: {
-    color: '#17221d',
+    color: '#ffffff',
     fontSize: 20,
     fontWeight: '800',
   },
@@ -3047,10 +3061,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   adminPill: {
-    backgroundColor: '#0f766e',
+    backgroundColor: theme.pink,
   },
   clientPill: {
-    backgroundColor: '#285f8f',
+    backgroundColor: theme.indigo,
   },
   roleText: {
     color: '#ffffff',
@@ -3060,16 +3074,16 @@ const styles = StyleSheet.create({
     margin: 12,
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#f7fbfb',
+    backgroundColor: theme.softPurple,
     borderWidth: 1,
-    borderColor: '#e1e8e8',
+    borderColor: '#ded7ff',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   noticeText: {
     flex: 1,
-    color: '#315c5a',
+    color: theme.navy,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -3078,7 +3092,7 @@ const styles = StyleSheet.create({
   },
   webContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   webview: {
     flex: 1,
@@ -3101,35 +3115,35 @@ const styles = StyleSheet.create({
     maxWidth: 220,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cdd9d2',
+    borderColor: theme.line,
     paddingHorizontal: 12,
     marginRight: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   activeChip: {
-    borderColor: '#0f766e',
-    backgroundColor: '#e3f5f1',
+    borderColor: theme.pink,
+    backgroundColor: theme.softPink,
   },
   chipText: {
-    color: '#405048',
+    color: theme.muted,
     fontWeight: '700',
   },
   activeChipText: {
-    color: '#0f766e',
+    color: theme.pink,
   },
   panelHeader: {
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   sectionTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
   },
   smallTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
@@ -3146,18 +3160,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   accordionTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 18,
     fontWeight: '800',
   },
   accordionSubtitle: {
-    color: '#687076',
+    color: theme.muted,
     fontSize: 12,
     lineHeight: 17,
     marginTop: 2,
   },
   muted: {
-    color: '#687076',
+    color: theme.muted,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -3176,22 +3190,22 @@ const styles = StyleSheet.create({
   },
   myMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#d9f4ee',
+    backgroundColor: '#ebe6ff',
   },
   theirMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
   },
   messageSender: {
-    color: '#0f766e',
+    color: theme.indigo,
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 4,
   },
   messageText: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     lineHeight: 21,
   },
@@ -3200,10 +3214,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
-    backgroundColor: '#f0f8f6',
+    backgroundColor: theme.softPink,
   },
   messageReferenceText: {
-    color: '#0f766e',
+    color: theme.pink,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -3216,21 +3230,21 @@ const styles = StyleSheet.create({
     minHeight: 56,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
     padding: 10,
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   mediaAttachmentTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 13,
     fontWeight: '800',
   },
   mediaAttachmentName: {
-    color: '#687076',
+    color: theme.muted,
     fontSize: 12,
     marginTop: 2,
   },
@@ -3281,25 +3295,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#dce5df',
+    borderTopColor: theme.line,
   },
   composerReference: {
     minHeight: 42,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#c7e3dc',
+    borderColor: '#e7c6dc',
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#f0f8f6',
+    backgroundColor: theme.softPink,
   },
   composerReferenceText: {
-    color: '#0f766e',
+    color: theme.pink,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -3309,7 +3323,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e3f5f1',
+    backgroundColor: '#ffe4ee',
   },
   composerRow: {
     flexDirection: 'row',
@@ -3322,18 +3336,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e3f5f1',
+    backgroundColor: theme.softPurple,
   },
   input: {
     minHeight: 40,
     maxHeight: 100,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cdd9d2',
+    borderColor: theme.line,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    backgroundColor: '#ffffff',
-    color: '#17221d',
+    backgroundColor: theme.surface,
+    color: theme.ink,
   },
   composerInput: {
     flex: 1,
@@ -3343,8 +3357,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modernTextArea: {
-    borderColor: '#e1e5e8',
-    color: '#17221d',
+    borderColor: theme.line,
+    color: theme.ink,
     fontSize: 15,
     marginBottom: 0,
   },
@@ -3354,7 +3368,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0f766e',
+    backgroundColor: theme.pink,
   },
   disabledButton: {
     opacity: 0.45,
@@ -3364,16 +3378,16 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
   },
   projectListCard: {
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#cfdad3',
+    borderColor: theme.line,
     marginBottom: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     overflow: 'hidden',
   },
   jobListItem: {
@@ -3384,18 +3398,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   activeJobListItem: {
-    borderColor: '#0f766e',
-    backgroundColor: '#e3f5f1',
+    borderColor: theme.pink,
+    backgroundColor: '#fff5f8',
   },
   projectProgressPanel: {
     borderTopWidth: 1,
-    borderTopColor: '#cce3df',
+    borderTopColor: '#eadff7',
     paddingHorizontal: 14,
     paddingTop: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   projectProgressHeading: {
-    color: '#101820',
+    color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 14,
@@ -3403,7 +3417,7 @@ const styles = StyleSheet.create({
   historyHeader: {
     minHeight: 58,
     borderTopWidth: 1,
-    borderTopColor: '#e6ece8',
+    borderTopColor: theme.line,
     paddingTop: 14,
     marginTop: 6,
     marginBottom: 8,
@@ -3413,12 +3427,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   historyTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 16,
     fontWeight: '800',
   },
   historySubtitle: {
-    color: '#687076',
+    color: theme.muted,
     fontSize: 12,
     marginTop: 2,
   },
@@ -3429,10 +3443,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f5f2',
+    backgroundColor: theme.softPurple,
   },
   historyCountText: {
-    color: '#0f766e',
+    color: theme.indigo,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -3444,7 +3458,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#f7f5ff',
   },
   historyEmptyText: {
     flex: 1,
@@ -3452,10 +3466,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   historyJobListItem: {
-    backgroundColor: '#fbfcfc',
+    backgroundColor: '#fbfaff',
   },
   jobListTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -3464,23 +3478,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    backgroundColor: '#f0f5f2',
+    backgroundColor: theme.softPurple,
   },
   statusTextSmall: {
-    color: '#0f766e',
+    color: theme.indigo,
     fontSize: 11,
     fontWeight: '800',
     textAlign: 'center',
   },
   projectMapSection: {
     borderTopWidth: 1,
-    borderTopColor: '#e6ece8',
+    borderTopColor: theme.line,
     paddingTop: 14,
     marginTop: 2,
     marginBottom: 14,
   },
   projectMapHeading: {
-    color: '#101820',
+    color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 12,
@@ -3489,15 +3503,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#dce5df',
-    backgroundColor: '#ffffff',
+    borderColor: theme.line,
+    backgroundColor: theme.surface,
   },
   map: {
     height: 230,
   },
   mapCaption: {
     padding: 10,
-    color: '#405048',
+    color: theme.muted,
     fontSize: 12,
   },
   projectLocationClosed: {
@@ -3507,9 +3521,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
   },
   projectLocationText: {
     flex: 1,
@@ -3521,9 +3535,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     padding: 18,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#e4e8e6',
+    borderColor: theme.line,
     gap: 12,
   },
   notificationsPanel: {
@@ -3531,9 +3545,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     padding: 18,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#e4e8e6',
+    borderColor: theme.line,
     gap: 12,
   },
   notificationsHeader: {
@@ -3546,12 +3560,12 @@ const styles = StyleSheet.create({
     minHeight: 72,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#fbfdfc',
+    backgroundColor: '#fbfaff',
   },
   notificationIconWrap: {
     width: 36,
@@ -3559,10 +3573,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e3f5f1',
+    backgroundColor: theme.softPurple,
   },
   notificationTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -3571,13 +3585,13 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     padding: 18,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#e4e8e6',
+    borderColor: theme.line,
     gap: 12,
   },
   formTitle: {
-    color: '#101820',
+    color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 6,
@@ -3586,16 +3600,16 @@ const styles = StyleSheet.create({
     minHeight: 58,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   formTextInput: {
     flex: 1,
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     minHeight: 44,
   },
@@ -3613,16 +3627,16 @@ const styles = StyleSheet.create({
     minHeight: 58,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   formSelectText: {
     flex: 1,
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -3633,17 +3647,17 @@ const styles = StyleSheet.create({
   conditionalPanel: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e8e8',
+    borderColor: '#ded7ff',
     padding: 12,
     gap: 10,
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#fbfaff',
   },
   selectOptionList: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   selectOptionRow: {
     minHeight: 46,
@@ -3652,10 +3666,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e1e5e8',
+    borderBottomColor: theme.line,
   },
   selectOptionText: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -3672,16 +3686,16 @@ const styles = StyleSheet.create({
   requestCard: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
     padding: 12,
-    backgroundColor: '#fbfdfc',
+    backgroundColor: theme.surface,
     gap: 4,
   },
   acceptedRequestCard: {
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#fbfaff',
   },
   focusedRequestCard: {
-    borderColor: '#0f766e',
+    borderColor: theme.pink,
     borderWidth: 1.5,
   },
   requestHeader: {
@@ -3691,7 +3705,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   requestTitle: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -3712,10 +3726,10 @@ const styles = StyleSheet.create({
   pendingMediaPanel: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e8e8',
+    borderColor: '#ded7ff',
     padding: 12,
     gap: 10,
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#fbfaff',
   },
   pendingMediaInfo: {
     minHeight: 28,
@@ -3724,7 +3738,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pendingMediaText: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -3732,7 +3746,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   formLabel: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 16,
     fontWeight: '800',
     marginTop: 10,
@@ -3740,8 +3754,8 @@ const styles = StyleSheet.create({
   suggestionBox: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
-    backgroundColor: '#ffffff',
+    borderColor: theme.line,
+    backgroundColor: theme.surface,
     overflow: 'hidden',
   },
   suggestionItem: {
@@ -3752,11 +3766,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#dce5df',
+    borderBottomColor: theme.line,
   },
   suggestionText: {
     flex: 1,
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -3764,15 +3778,15 @@ const styles = StyleSheet.create({
     minHeight: 60,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   radioText: {
-    color: '#101820',
+    color: theme.ink,
     fontWeight: '800',
   },
   radioSubText: {
@@ -3788,7 +3802,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0f766e',
+    backgroundColor: theme.indigo,
   },
   requestSentText: {
     color: '#ffffff',
@@ -3798,29 +3812,29 @@ const styles = StyleSheet.create({
   recurringBox: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     padding: 14,
     gap: 12,
-    backgroundColor: '#fbfcfc',
+    backgroundColor: '#fbfaff',
   },
   distancePanel: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
     padding: 12,
     gap: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   distanceTextWrap: {
     gap: 3,
   },
   distanceValue: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 16,
     fontWeight: '800',
   },
   distanceSubValue: {
-    color: '#405048',
+    color: theme.muted,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -3834,19 +3848,19 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e1e5e8',
+    borderColor: theme.line,
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   activeServiceButton: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e',
+    backgroundColor: theme.indigo,
+    borderColor: theme.indigo,
   },
   serviceButtonText: {
-    color: '#17221d',
+    color: theme.ink,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -3863,17 +3877,17 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cdd9d2',
+    borderColor: theme.line,
     paddingHorizontal: 10,
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   activeStatusButton: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e',
+    backgroundColor: theme.purple,
+    borderColor: theme.purple,
   },
   statusButtonText: {
-    color: '#405048',
+    color: theme.muted,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -3893,14 +3907,14 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#0f9488',
+    backgroundColor: theme.pink,
     marginTop: 7,
   },
   timelineLine: {
     width: 2,
     flex: 1,
     marginTop: 8,
-    backgroundColor: '#e0e6e9',
+    backgroundColor: '#e7e3f3',
   },
   timelineBody: {
     flex: 1,
@@ -3914,7 +3928,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   timelineTitle: {
-    color: '#101820',
+    color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
   },
@@ -3925,15 +3939,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#e3f5f1',
+    backgroundColor: theme.softPurple,
   },
   timelineEditText: {
-    color: '#0f766e',
+    color: theme.indigo,
     fontSize: 12,
     fontWeight: '800',
   },
   timelineText: {
-    color: '#59616b',
+    color: theme.muted,
     marginTop: 8,
     fontSize: 16,
     lineHeight: 23,
@@ -3960,9 +3974,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 14,
     marginBottom: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
   },
   accountActions: {
     gap: 10,
@@ -3978,7 +3992,7 @@ const styles = StyleSheet.create({
     padding: 4,
     flexDirection: 'row',
     gap: 4,
-    backgroundColor: '#f0f5f2',
+    backgroundColor: theme.softPurple,
   },
   authToggleButton: {
     flex: 1,
@@ -3987,16 +4001,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeAuthToggleButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#dce5df',
+    borderColor: theme.line,
   },
   authToggleText: {
-    color: '#687076',
+    color: theme.muted,
     fontWeight: '800',
   },
   activeAuthToggleText: {
-    color: '#0f766e',
+    color: theme.indigo,
   },
   primaryButton: {
     minHeight: 52,
@@ -4006,7 +4020,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0f766e',
+    backgroundColor: theme.indigo,
   },
   primaryButtonText: {
     color: '#ffffff',
@@ -4022,11 +4036,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#0f766e',
-    backgroundColor: '#ffffff',
+    borderColor: theme.pink,
+    backgroundColor: theme.surface,
   },
   secondaryButtonText: {
-    color: '#0f766e',
+    color: theme.pink,
     fontWeight: '800',
   },
   checkItem: {
@@ -4037,7 +4051,7 @@ const styles = StyleSheet.create({
   },
   checkText: {
     flex: 1,
-    color: '#405048',
+    color: theme.muted,
     lineHeight: 20,
   },
   emptyState: {
@@ -4050,9 +4064,9 @@ const styles = StyleSheet.create({
   tabBar: {
     height: 68,
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#dce5df',
+    borderTopColor: theme.line,
   },
   tabButton: {
     flex: 1,
@@ -4084,15 +4098,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   tabLabel: {
-    color: '#687076',
+    color: theme.muted,
     fontSize: 12,
     fontWeight: '700',
   },
   activeTabLabel: {
-    color: '#0f766e',
+    color: theme.indigo,
   },
   legalText: {
-    color: '#405048',
+    color: theme.muted,
     fontSize: 14,
     lineHeight: 21,
   },
@@ -4103,10 +4117,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#fbfaff',
   },
   legalLinkText: {
-    color: '#0f766e',
+    color: theme.indigo,
     fontSize: 15,
     fontWeight: '800',
   },
