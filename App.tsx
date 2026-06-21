@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Easing,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -749,7 +750,8 @@ export default function App() {
     setActiveTab('jobs');
     Animated.timing(referenceSlide, {
       toValue: 0,
-      duration: 260,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   };
@@ -757,13 +759,13 @@ export default function App() {
   const referenceSlideStyle = {
     opacity: referenceSlide.interpolate({
       inputRange: [0, 1],
-      outputRange: [1, 0.96],
+      outputRange: [1, 0.98],
     }),
     transform: [
       {
         translateX: referenceSlide.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 42],
+          outputRange: [0, 24],
         }),
       },
     ],
