@@ -2239,12 +2239,17 @@ function AccountScreen({
   const [notificationPreference, setNotificationPreference] = useState<NotificationPreference>(user?.notificationPreference ?? 'all');
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [openLegal, setOpenLegal] = useState<'terms' | 'privacy' | null>(null);
+  const [showSettingsPage, setShowSettingsPage] = useState(false);
 
   useEffect(() => {
     setSettingsName(user?.displayName ?? '');
     setSettingsEmail(user?.email ?? '');
     setNotificationPreference(user?.notificationPreference ?? 'all');
   }, [user?.displayName, user?.email, user?.notificationPreference]);
+
+  useEffect(() => {
+    if (!user) setShowSettingsPage(false);
+  }, [user]);
 
   const handleSignIn = async () => {
     if (!auth) return;
@@ -2348,6 +2353,121 @@ function AccountScreen({
     }
   };
 
+  if (user && showSettingsPage) {
+    return (
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.settingsPageHeader}>
+          <Pressable style={styles.settingsBackButton} onPress={() => setShowSettingsPage(false)}>
+            <Ionicons name="chevron-back-outline" size={20} color={theme.indigo} />
+            <Text style={styles.settingsBackText}>Account</Text>
+          </Pressable>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.muted}>Manage your profile, login, notifications, and legal details.</Text>
+        </View>
+
+        <View style={styles.accountCard}>
+          <Text style={styles.smallTitle}>Profile and Login</Text>
+          <View style={styles.settingsInputStack}>
+            <TextInput
+              style={styles.input}
+              placeholder="Name or Business Name"
+              value={settingsName}
+              onChangeText={setSettingsName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={settingsEmail}
+              onChangeText={setSettingsEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="New Password"
+              value={settingsPassword}
+              onChangeText={setSettingsPassword}
+              secureTextEntry
+              textContentType="newPassword"
+            />
+          </View>
+
+          <View style={styles.settingsDivider} />
+
+          <View style={styles.settingsSection}>
+            <View>
+              <Text style={styles.settingsSectionTitle}>Notify Me About</Text>
+              <Text style={styles.accordionSubtitle}>Choose which app updates should alert you.</Text>
+            </View>
+            <View style={styles.settingsPreferenceGrid}>
+              {notificationPreferenceOptions.map((option) => {
+                const active = notificationPreference === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.settingsPreferenceButton, active && styles.activeSettingsPreferenceButton]}
+                    onPress={() => setNotificationPreference(option.value)}
+                  >
+                    <Ionicons name={option.icon} size={19} color={active ? '#ffffff' : theme.indigo} />
+                    <Text style={[styles.settingsPreferenceText, active && styles.activeSettingsPreferenceText]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.settingsActions}>
+            <PrimaryButton
+              label={settingsBusy ? 'Saving Settings...' : 'Save Settings'}
+              icon="save-outline"
+              loading={settingsBusy}
+              disabled={settingsBusy}
+              onPress={handleSaveSettings}
+            />
+            <SecondaryButton
+              label="Request Notification Permission"
+              icon="notifications-outline"
+              onPress={registerForNotifications}
+            />
+          </View>
+        </View>
+
+        <View style={styles.accountCard}>
+          <Text style={styles.smallTitle}>Legal</Text>
+          <Pressable
+            style={styles.legalLinkRow}
+            onPress={() => setOpenLegal((current) => (current === 'terms' ? null : 'terms'))}
+          >
+            <Text style={styles.legalLinkText}>Terms of Service</Text>
+            <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
+          </Pressable>
+          {openLegal === 'terms' && (
+            <Text style={styles.legalText}>
+              By using this app, clients agree to provide accurate project details, confirm they have permission for filming locations, and use delivered media according to the agreed project terms. Scheduling, weather, airspace restrictions, and safety requirements may affect shoot timing.
+            </Text>
+          )}
+          <Pressable
+            style={styles.legalLinkRow}
+            onPress={() => setOpenLegal((current) => (current === 'privacy' ? null : 'privacy'))}
+          >
+            <Text style={styles.legalLinkText}>Privacy Policy</Text>
+            <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
+          </Pressable>
+          {openLegal === 'privacy' && (
+            <Text style={styles.legalText}>
+              This app uses account details, chat messages, project requests, media attachments, notifications, and job progress information to manage client projects. Location sharing is limited to active shoot progress when enabled by the admin for a specific project.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -2426,87 +2546,53 @@ function AccountScreen({
         </View>
       </View>
       {user && (
-        <View style={styles.accountCard}>
-          <Text style={styles.smallTitle}>Settings</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Name or Business Name"
-            value={settingsName}
-            onChangeText={setSettingsName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={settingsEmail}
-            onChangeText={setSettingsEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="New Password"
-            value={settingsPassword}
-            onChangeText={setSettingsPassword}
-            secureTextEntry
-            textContentType="newPassword"
-          />
-          <Text style={styles.formLabel}>Notify Me About</Text>
-          <View style={styles.serviceGrid}>
-            {notificationPreferenceOptions.map((option) => {
-              const active = notificationPreference === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  style={[styles.serviceButton, active && styles.activeServiceButton]}
-                  onPress={() => setNotificationPreference(option.value)}
-                >
-                  <Ionicons name={option.icon} size={19} color={active ? '#ffffff' : theme.indigo} />
-                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
+        <Pressable style={styles.settingsEntryButton} onPress={() => setShowSettingsPage(true)}>
+          <View style={styles.settingsEntryIcon}>
+            <Ionicons name="settings-outline" size={22} color={theme.indigo} />
+          </View>
+          <View style={styles.flexOne}>
+            <Text style={styles.settingsEntryTitle}>Settings</Text>
+            <Text style={styles.settingsEntrySubtitle}>Name, email, password, notifications, and legal</Text>
+          </View>
+          <Ionicons name="chevron-forward-outline" size={20} color={theme.muted} />
+        </Pressable>
+      )}
+      {!user && (
+        <>
+          <View style={styles.accountCard}>
+            <Text style={styles.smallTitle}>Legal</Text>
+            <Pressable
+              style={styles.legalLinkRow}
+              onPress={() => setOpenLegal((current) => (current === 'terms' ? null : 'terms'))}
+            >
+              <Text style={styles.legalLinkText}>Terms of Service</Text>
+              <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
+            </Pressable>
+            {openLegal === 'terms' && (
+              <Text style={styles.legalText}>
+                By using this app, clients agree to provide accurate project details, confirm they have permission for filming locations, and use delivered media according to the agreed project terms. Scheduling, weather, airspace restrictions, and safety requirements may affect shoot timing.
+              </Text>
+            )}
+            <Pressable
+              style={styles.legalLinkRow}
+              onPress={() => setOpenLegal((current) => (current === 'privacy' ? null : 'privacy'))}
+            >
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
+            </Pressable>
+            {openLegal === 'privacy' && (
+              <Text style={styles.legalText}>
+                This app uses account details, chat messages, project requests, media attachments, notifications, and job progress information to manage client projects. Location sharing is limited to active shoot progress when enabled by the admin for a specific project.
+              </Text>
+            )}
           </View>
           <PrimaryButton
-            label={settingsBusy ? 'Saving Settings...' : 'Save Settings'}
-            icon="save-outline"
-            loading={settingsBusy}
-            disabled={settingsBusy}
-            onPress={handleSaveSettings}
+            label="Request Notification Permission"
+            icon="notifications-outline"
+            onPress={registerForNotifications}
           />
-        </View>
+        </>
       )}
-      <View style={styles.accountCard}>
-        <Text style={styles.smallTitle}>Legal</Text>
-        <Pressable
-          style={styles.legalLinkRow}
-          onPress={() => setOpenLegal((current) => (current === 'terms' ? null : 'terms'))}
-        >
-          <Text style={styles.legalLinkText}>Terms of Service</Text>
-          <Ionicons name={openLegal === 'terms' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
-        </Pressable>
-        {openLegal === 'terms' && (
-          <Text style={styles.legalText}>
-            By using this app, clients agree to provide accurate project details, confirm they have permission for filming locations, and use delivered media according to the agreed project terms. Scheduling, weather, airspace restrictions, and safety requirements may affect shoot timing.
-          </Text>
-        )}
-        <Pressable
-          style={styles.legalLinkRow}
-          onPress={() => setOpenLegal((current) => (current === 'privacy' ? null : 'privacy'))}
-        >
-          <Text style={styles.legalLinkText}>Privacy Policy</Text>
-          <Ionicons name={openLegal === 'privacy' ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={theme.indigo} />
-        </Pressable>
-        {openLegal === 'privacy' && (
-          <Text style={styles.legalText}>
-            This app uses account details, chat messages, project requests, media attachments, notifications, and job progress information to manage client projects. Location sharing is limited to active shoot progress when enabled by the admin for a specific project.
-          </Text>
-        )}
-      </View>
-      <PrimaryButton
-        label="Request Notification Permission"
-        icon="notifications-outline"
-        onPress={registerForNotifications}
-      />
     </ScrollView>
   );
 }
@@ -3977,6 +4063,106 @@ const styles = StyleSheet.create({
     backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.line,
+  },
+  settingsEntryButton: {
+    minHeight: 76,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    backgroundColor: theme.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingsEntryIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.softPurple,
+  },
+  settingsEntryTitle: {
+    color: theme.ink,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  settingsEntrySubtitle: {
+    color: theme.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  settingsPageHeader: {
+    marginBottom: 14,
+    gap: 6,
+  },
+  settingsBackButton: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    borderRadius: 8,
+    paddingRight: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  settingsBackText: {
+    color: theme.indigo,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  settingsInputStack: {
+    gap: 10,
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: theme.line,
+    marginVertical: 16,
+  },
+  settingsSection: {
+    gap: 12,
+  },
+  settingsSectionTitle: {
+    color: theme.ink,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  settingsPreferenceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  settingsPreferenceButton: {
+    minHeight: 50,
+    flexBasis: '47%',
+    flexGrow: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.surface,
+  },
+  activeSettingsPreferenceButton: {
+    backgroundColor: theme.indigo,
+    borderColor: theme.indigo,
+  },
+  settingsPreferenceText: {
+    color: theme.ink,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeSettingsPreferenceText: {
+    color: '#ffffff',
+  },
+  settingsActions: {
+    gap: 10,
+    marginTop: 16,
   },
   accountActions: {
     gap: 10,
