@@ -2,6 +2,10 @@
 
 This app runs in demo mode until Firebase values are added.
 
+## Why This Is Required
+
+Firebase must be configured before real clients use the app. Without Firebase, the app uses local demo data and users can lose projects, chats, media references, and progress updates when the app reloads or moves devices.
+
 ## Project Services
 
 Enable these Firebase services:
@@ -12,9 +16,11 @@ Enable these Firebase services:
 - Cloud Functions: invites, admin-only writes, push notification fanout, and location cleanup.
 - Cloud Messaging: iOS push notifications through APNs.
 
+Use a production Firebase project first. Add a separate staging project later if you need a safer testing lane.
+
 ## Expo Environment
 
-Create `.env.local` with:
+Copy `.env.example` to `.env.local` and fill it with the web app config from Firebase console > Project settings > Your apps > Web app.
 
 ```sh
 EXPO_PUBLIC_FIREBASE_API_KEY=
@@ -24,6 +30,35 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
 EXPO_PUBLIC_WEBSITE_URL=https://www.theknoxvilledroneguy.com
+```
+
+Restart Expo after changing `.env.local`.
+
+When Firebase is configured correctly, the in-app demo-mode notice disappears.
+
+## Deploy Rules and Functions
+
+Install and log in to the Firebase CLI, then select your project:
+
+```sh
+npm install -g firebase-tools
+firebase login
+firebase use --add
+```
+
+If you want to set the project manually, copy `.firebaserc.example` to `.firebaserc` and replace `your-firebase-project-id`.
+
+Deploy Firestore rules, Storage rules, and Cloud Functions:
+
+```sh
+npm run firebase:deploy
+```
+
+You can deploy only rules or only functions with:
+
+```sh
+npm run firebase:deploy:rules
+npm run firebase:deploy:functions
 ```
 
 ## Admin Role
@@ -36,6 +71,8 @@ await admin.auth().setCustomUserClaims(uid, { admin: true });
 
 Clients should not receive the admin claim. Client access is controlled by `clientId` on chat threads and jobs.
 
+After setting the claim, sign out and sign back in so the app receives a fresh token.
+
 ## Collections
 
 - `users/{uid}`: email, displayName, role, notificationPreference, expoPushTokens, createdAt, updatedAt.
@@ -44,6 +81,17 @@ Clients should not receive the admin claim. Client access is controlled by `clie
 - `jobs/{jobId}`: clientId, clientName, title, address, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, status, scheduledAt, liveLocation.
 - `jobs/{jobId}/updates/{updateId}`: status, note, attachment, createdAt.
 - `shootRequests/{requestId}`: clientId, clientName, requesterName, title, requestedWhen, requestedDate, requestedTime, projectAddress, homeBaseAddress, routeDistanceMiles, routeTravelTimeMinutes, routeDistanceStatus, services, otherDescription, videoEditFormat, videoEditOther, finishedVideoLength, finishedVideoLengthOther, details, isRecurring, recurrenceFrequency, recurrenceOther, recurrenceEndDate, status, createdAt.
+
+Admin-created projects can include `projectClaimCode`, `claimStatus`, `claimedByUid`, and `claimedAt`. Clients claim those projects through Cloud Functions, not by directly updating `jobs`.
+
+## Project Claim Codes
+
+The app uses two callable functions:
+
+- `validateProjectClaimCode`: checks whether a code exists and is still unclaimed before signup.
+- `claimProjectByCode`: after signup, links the unclaimed project to the new authenticated user.
+
+Clients must not have direct Firestore permission to claim or update jobs. The Cloud Function uses Admin SDK privileges, validates the project code, and updates only matching unclaimed jobs.
 
 ## Shoot Request Intake
 
@@ -70,3 +118,26 @@ For v1 testing, the app tries to calculate route distance and travel time automa
 ## Website Chat
 
 Add a Firebase web widget to `https://www.theknoxvilledroneguy.com` that writes to the same `chatThreads` and `messages` collections. Website visitor identity can start as a lead thread, then be linked to a Firebase user after invitation.
+
+## Backups and Recovery
+
+Enable Firestore data protection before launch:
+
+- Turn on Firestore point-in-time recovery for short-term accidental write/delete recovery.
+- Add a scheduled Firestore backup, daily or weekly depending on usage and budget.
+- Keep Firebase rules in this repo as the source of truth. If rules are edited in the console, copy the final version back into `firebase/firestore.rules` or `firebase/storage.rules`.
+
+Storage files are not included in Firestore backups. For important delivered media, keep your original media archive outside the app as the business source of truth.
+
+## Launch Checklist
+
+- `.env.local` contains all `EXPO_PUBLIC_FIREBASE_*` values.
+- Email/password auth is enabled.
+- Firestore database is created in production mode.
+- Storage bucket is created.
+- `npm run firebase:deploy` succeeds.
+- Owner account has `{ admin: true }` custom claim.
+- Demo-mode banner is gone.
+- A client can sign up, request a project, send chat, and see assigned projects.
+- Admin can create/accept projects, upload media, and update progress.
+- A client cannot see another client's jobs, requests, chats, or storage media.

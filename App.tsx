@@ -43,7 +43,6 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -51,8 +50,9 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { auth, db, isFirebaseConfigured, storage } from './src/firebase';
+import { auth, db, functions, isFirebaseConfigured, storage } from './src/firebase';
 import {
   AppData,
   AppUser,
@@ -2752,17 +2752,7 @@ function AccountScreen({
 
     setBusy(true);
     try {
-      const claimSnapshot = normalizedClaimCode
-        ? await getDocs(
-            query(
-              collection(firestore, 'jobs'),
-              where('projectClaimCode', '==', normalizedClaimCode),
-              where('claimStatus', '==', 'unclaimed'),
-            ),
-          )
-        : null;
-
-      if (normalizedClaimCode && (!claimSnapshot || claimSnapshot.empty)) {
+      if (normalizedClaimCode && !(await validateProjectClaimCode(normalizedClaimCode))) {
         Alert.alert('Project not found', 'That project ID is invalid or has already been claimed.');
         return;
       }
@@ -2777,19 +2767,8 @@ function AccountScreen({
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      if (claimSnapshot && !claimSnapshot.empty) {
-        await Promise.all(
-          claimSnapshot.docs.map((projectDoc) =>
-            updateDoc(doc(firestore, 'jobs', projectDoc.id), {
-              clientId: created.user.uid,
-              clientName: trimmedName,
-              clientEmail: trimmedEmail,
-              claimStatus: 'claimed',
-              claimedByUid: created.user.uid,
-              claimedAt: Date.now(),
-            }),
-          ),
-        );
+      if (normalizedClaimCode) {
+        await claimProjectByCode(normalizedClaimCode);
       }
       setPassword('');
       setConfirmPassword('');
@@ -3461,6 +3440,19 @@ function generateProjectClaimCode(existingCodes: string[]) {
     if (!existing.has(code)) return code;
   }
   return `KDG-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+}
+
+async function validateProjectClaimCode(code: string) {
+  if (!functions) return false;
+  const validate = httpsCallable<{ code: string }, { valid: boolean }>(functions, 'validateProjectClaimCode');
+  const result = await validate({ code });
+  return result.data.valid === true;
+}
+
+async function claimProjectByCode(code: string) {
+  if (!functions) throw new Error('Firebase Functions are not configured.');
+  const claim = httpsCallable<{ code: string }, { projectIds: string[] }>(functions, 'claimProjectByCode');
+  await claim({ code });
 }
 
 async function calculateDrivingRoute(sourceAddress: string, destinationAddress: string): Promise<DrivingRouteResult | null> {

@@ -10,13 +10,42 @@ service firebase.storage {
       return signedIn() && request.auth.token.admin == true;
     }
 
+    function chatThread(threadId) {
+      return firestore.get(/databases/(default)/documents/chatThreads/$(threadId));
+    }
+
+    function job(jobId) {
+      return firestore.get(/databases/(default)/documents/jobs/$(jobId));
+    }
+
+    function isChatParticipant(threadId) {
+      return signedIn() && (
+        isAdmin() ||
+        chatThread(threadId).data.clientId == request.auth.uid
+      );
+    }
+
+    function canReadJobMedia(jobId) {
+      return signedIn() && (
+        isAdmin() ||
+        job(jobId).data.clientId == request.auth.uid
+      );
+    }
+
+    function isAllowedMediaUpload() {
+      return request.resource != null
+        && request.resource.size < 250 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
+    }
+
     match /chat/{threadId}/{fileName} {
-      allow read, write: if signedIn();
+      allow read: if isChatParticipant(threadId);
+      allow write: if isChatParticipant(threadId) && isAllowedMediaUpload();
     }
 
     match /jobs/{jobId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if canReadJobMedia(jobId);
+      allow write: if isAdmin() && isAllowedMediaUpload();
     }
   }
 }
