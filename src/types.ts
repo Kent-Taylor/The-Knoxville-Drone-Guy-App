@@ -70,8 +70,14 @@ export type Job = {
   id: string;
   clientId: string;
   clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
   title: string;
   address: string;
+  projectClaimCode?: string;
+  claimStatus?: 'unclaimed' | 'claimed';
+  claimedByUid?: string;
+  claimedAt?: number;
   homeBaseAddress?: string;
   routeDistanceMiles?: number;
   routeTravelTimeMinutes?: number;

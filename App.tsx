@@ -43,6 +43,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -198,6 +199,15 @@ const initialData: AppData = {
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'notifications' | 'account';
 type ShootRequestDraft = Omit<ShootRequest, 'id' | 'clientId' | 'clientName' | 'status' | 'createdAt'>;
+type AdminProjectDraft = {
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  title: string;
+  address: string;
+  notes: string;
+  scheduledAt: number;
+};
 type ChatReference = NonNullable<ChatMessage['reference']>;
 type ShootRequestEdit = Pick<ShootRequest, 'title' | 'requestedWhen' | 'projectAddress' | 'details'>;
 type DrivingRouteResult = {
@@ -593,6 +603,52 @@ export default function App() {
     }));
   };
 
+  const createAdminProject = async (project: AdminProjectDraft) => {
+    if (!isAdmin) return '';
+    const route = await calculateDrivingRoute(HOME_BASE_ADDRESS, project.address);
+    const claimCode = generateProjectClaimCode(data.jobs.map((job) => job.projectClaimCode).filter(Boolean) as string[]);
+    const jobId = `job-${Date.now()}`;
+    const initialUpdate: JobUpdate = {
+      id: `update-${Date.now()}`,
+      jobId,
+      status: 'scheduled',
+      note: project.notes.trim() || 'Project created.',
+      createdAt: Date.now(),
+    };
+    const job: Job = {
+      id: jobId,
+      clientId: `unclaimed-${claimCode}`,
+      clientName: project.clientName.trim(),
+      clientEmail: project.clientEmail?.trim() || undefined,
+      clientPhone: project.clientPhone?.trim() || undefined,
+      title: project.title.trim(),
+      address: project.address.trim(),
+      projectClaimCode: claimCode,
+      claimStatus: 'unclaimed',
+      homeBaseAddress: HOME_BASE_ADDRESS,
+      routeDistanceMiles: route?.distanceMiles,
+      routeTravelTimeMinutes: route?.travelTimeMinutes,
+      routeDistanceStatus: route ? 'ready' : 'failed',
+      routeDistanceUpdatedAt: Date.now(),
+      status: 'scheduled',
+      scheduledAt: project.scheduledAt,
+      updates: [initialUpdate],
+    };
+
+    if (isFirebaseConfigured && db) {
+      await setDoc(doc(db, 'jobs', job.id), { ...job, updates: [] });
+      await setDoc(doc(db, 'jobs', job.id, 'updates', initialUpdate.id), initialUpdate);
+    }
+
+    setData((current) => ({
+      ...current,
+      jobs: [job, ...current.jobs],
+    }));
+    setSelectedJobId(job.id);
+    scheduleLocalNotification('Project created', `Client signup code: ${claimCode}`);
+    return claimCode;
+  };
+
   const editJobUpdate = async (
     job: Job,
     updateId: string,
@@ -797,6 +853,7 @@ export default function App() {
           isAdmin={isAdmin}
           jobs={visibleJobs}
           onAcceptShootRequest={acceptShootRequest}
+          onCreateAdminProject={createAdminProject}
           onOpenMedia={setSelectedMedia}
           onRequestShootDetails={requestShootDetails}
           onSubmitShootRequest={submitShootRequest}
@@ -1134,6 +1191,7 @@ function JobsScreen({
   isAdmin,
   jobs,
   onAcceptShootRequest,
+  onCreateAdminProject,
   onEditUpdate,
   onOpenMedia,
   onRequestShootDetails,
@@ -1150,6 +1208,7 @@ function JobsScreen({
   isAdmin: boolean;
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
+  onCreateAdminProject: (project: AdminProjectDraft) => Promise<string>;
   onEditUpdate: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   onOpenMedia: (attachment: Attachment) => void;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
@@ -1188,6 +1247,7 @@ function JobsScreen({
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
       >
+        {isAdmin && <AdminCreateProjectForm onSubmit={onCreateAdminProject} />}
         {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
         <EmptyState title="No projects yet" body="Assigned projects and progress updates will appear here." />
       </ScrollView>
@@ -1247,6 +1307,11 @@ function JobsScreen({
           <View style={styles.flexOne}>
             <Text style={styles.jobListTitle}>{job.title}</Text>
             <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+            {isAdmin && job.projectClaimCode && (
+              <Text style={styles.claimCodeInline}>
+                Client Signup Code: {job.projectClaimCode} · {job.claimStatus === 'claimed' ? 'Claimed' : 'Unclaimed'}
+              </Text>
+            )}
           </View>
           <View style={[styles.statusPillSmall, { backgroundColor: statusColors.backgroundColor }]}>
             <Text style={[styles.statusTextSmall, { color: statusColors.color }]}>{statusLabel(job.status)}</Text>
@@ -1319,6 +1384,7 @@ function JobsScreen({
       keyboardDismissMode="interactive"
       keyboardShouldPersistTaps="handled"
     >
+      {isAdmin && <AdminCreateProjectForm onSubmit={onCreateAdminProject} />}
       {!isAdmin && <ShootRequestForm onSubmit={onSubmitShootRequest} user={user} />}
       {(isAdmin || shootRequests.length > 0) && (
         <View style={styles.adminPanel}>
@@ -1529,6 +1595,236 @@ function JobsScreen({
         </View>
       )}
     </ScrollView>
+  );
+}
+
+function AdminCreateProjectForm({
+  onSubmit,
+}: {
+  onSubmit: (project: AdminProjectDraft) => Promise<string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [title, setTitle] = useState('');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+  const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
+  const [scheduledTime, setScheduledTime] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [createdCode, setCreatedCode] = useState('');
+
+  const filteredAddresses = useMemo(() => {
+    const needle = address.trim().toLowerCase();
+    if (needle.length < 3) return [];
+    return addressSuggestions
+      .filter((suggestion) => suggestion.toLowerCase().includes(needle) && suggestion !== address)
+      .slice(0, 4);
+  }, [address]);
+
+  const clearValidationError = (field: string) => {
+    setValidationErrors((current) => current.filter((item) => item !== field));
+  };
+  const hasError = (field: string) => validationErrors.includes(field);
+
+  const submit = async () => {
+    if (submitting) return;
+    const errors = [
+      ...(!clientName.trim() ? ['clientName'] : []),
+      ...(!title.trim() ? ['title'] : []),
+      ...(!scheduledDate ? ['scheduledDate'] : []),
+      ...(!scheduledTime ? ['scheduledTime'] : []),
+      ...(!address.trim() ? ['address'] : []),
+      ...(!notes.trim() ? ['notes'] : []),
+    ];
+    setValidationErrors(errors);
+    if (errors.length > 0 || !scheduledDate || !scheduledTime) return;
+
+    const scheduledAtDate = new Date(scheduledDate);
+    scheduledAtDate.setHours(scheduledTime.getHours(), scheduledTime.getMinutes(), 0, 0);
+
+    setSubmitting(true);
+    setCreatedCode('');
+    try {
+      const claimCode = await onSubmit({
+        clientName: clientName.trim(),
+        clientEmail: clientEmail.trim() || undefined,
+        clientPhone: clientPhone.trim() || undefined,
+        title: title.trim(),
+        address: address.trim(),
+        notes: notes.trim(),
+        scheduledAt: scheduledAtDate.getTime(),
+      });
+      setClientName('');
+      setClientEmail('');
+      setClientPhone('');
+      setTitle('');
+      setAddress('');
+      setNotes('');
+      setScheduledDate(null);
+      setScheduledTime(null);
+      setValidationErrors([]);
+      setCreatedCode(`Project Created! Client Signup Code: ${claimCode}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={styles.shootRequestCard}>
+      <Pressable style={styles.accordionHeader} onPress={() => setExpanded((current) => !current)}>
+        <View style={styles.accordionTitleWrap}>
+          <Text style={styles.accordionTitle}>Create Project</Text>
+          <Text style={styles.accordionSubtitle}>Start a project before the client has an account.</Text>
+        </View>
+        <Ionicons name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={theme.muted} />
+      </Pressable>
+      {!!createdCode && (
+        <View style={styles.requestSentBanner}>
+          <Ionicons name="checkmark-circle-outline" size={22} color="#ffffff" />
+          <Text style={styles.requestSentText}>{createdCode}</Text>
+        </View>
+      )}
+      {expanded && (
+        <>
+          <IconTextInput
+            error={hasError('clientName')}
+            icon="person-outline"
+            placeholder="Client name or business name"
+            value={clientName}
+            onChangeText={(value) => {
+              setClientName(value);
+              clearValidationError('clientName');
+            }}
+          />
+          <IconTextInput
+            icon="mail-outline"
+            placeholder="Client email (optional)"
+            value={clientEmail}
+            onChangeText={setClientEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            textContentType="emailAddress"
+          />
+          <IconTextInput
+            icon="call-outline"
+            placeholder="Client phone (optional)"
+            value={clientPhone}
+            onChangeText={setClientPhone}
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+          />
+          <IconTextInput
+            error={hasError('title')}
+            icon="document-outline"
+            placeholder="Project name"
+            value={title}
+            onChangeText={(value) => {
+              setTitle(value);
+              clearValidationError('title');
+            }}
+          />
+          <Pressable
+            style={[styles.formSelectRow, hasError('scheduledDate') && styles.validationErrorBorder]}
+            onPress={() => setShowDatePicker((current) => !current)}
+          >
+            <Ionicons name="calendar-outline" size={22} color={theme.muted} />
+            <Text style={[styles.formSelectText, !scheduledDate && styles.formPlaceholderText]}>
+              {scheduledDate ? formatProjectDate(scheduledDate) : 'Select Project Date'}
+            </Text>
+            <Ionicons name={showDatePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
+          </Pressable>
+          {showDatePicker && (
+            <DateTimePicker
+              value={scheduledDate ?? new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowDatePicker(false);
+                if (date) {
+                  setScheduledDate(date);
+                  clearValidationError('scheduledDate');
+                }
+              }}
+            />
+          )}
+          <Pressable
+            style={[styles.formSelectRow, hasError('scheduledTime') && styles.validationErrorBorder]}
+            onPress={() => setShowTimePicker((current) => !current)}
+          >
+            <Ionicons name="time-outline" size={22} color={theme.muted} />
+            <Text style={[styles.formSelectText, !scheduledTime && styles.formPlaceholderText]}>
+              {scheduledTime ? formatClockTime(scheduledTime) : 'Select Project Time'}
+            </Text>
+            <Ionicons name={showTimePicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
+          </Pressable>
+          {showTimePicker && (
+            <DateTimePicker
+              value={scheduledTime ?? new Date()}
+              mode="time"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowTimePicker(false);
+                if (date) {
+                  setScheduledTime(date);
+                  clearValidationError('scheduledTime');
+                }
+              }}
+            />
+          )}
+          <IconTextInput
+            error={hasError('address')}
+            icon="location-outline"
+            placeholder="Project address"
+            value={address}
+            onChangeText={(value) => {
+              setAddress(value);
+              clearValidationError('address');
+            }}
+            textContentType="fullStreetAddress"
+          />
+          {filteredAddresses.length > 0 && (
+            <View style={styles.suggestionBox}>
+              {filteredAddresses.map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  style={styles.suggestionItem}
+                  onPress={() => {
+                    setAddress(suggestion);
+                    clearValidationError('address');
+                  }}
+                >
+                  <Ionicons name="location-outline" size={16} color={theme.indigo} />
+                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          <IconTextInput
+            error={hasError('notes')}
+            icon="chatbubble-outline"
+            placeholder="Project notes"
+            value={notes}
+            onChangeText={(value) => {
+              setNotes(value);
+              clearValidationError('notes');
+            }}
+            multiline
+          />
+          <PrimaryButton
+            label={submitting ? 'Creating Project...' : 'Create Project'}
+            icon="briefcase-outline"
+            loading={submitting}
+            disabled={submitting}
+            onPress={submit}
+          />
+        </>
+      )}
+    </View>
   );
 }
 
@@ -2232,6 +2528,7 @@ function AccountScreen({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [projectSignupCode, setProjectSignupCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [settingsName, setSettingsName] = useState(user?.displayName ?? '');
   const [settingsEmail, setSettingsEmail] = useState(user?.email ?? '');
@@ -2269,8 +2566,10 @@ function AccountScreen({
 
   const handleSignUp = async () => {
     if (!auth || !db) return;
+    const firestore = db;
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedName = displayName.trim();
+    const normalizedClaimCode = normalizeProjectClaimCode(projectSignupCode);
     const passwordProblem = getPasswordProblem(password);
 
     if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
@@ -2292,9 +2591,24 @@ function AccountScreen({
 
     setBusy(true);
     try {
+      const claimSnapshot = normalizedClaimCode
+        ? await getDocs(
+            query(
+              collection(firestore, 'jobs'),
+              where('projectClaimCode', '==', normalizedClaimCode),
+              where('claimStatus', '==', 'unclaimed'),
+            ),
+          )
+        : null;
+
+      if (normalizedClaimCode && (!claimSnapshot || claimSnapshot.empty)) {
+        Alert.alert('Project not found', 'That project ID is invalid or has already been claimed.');
+        return;
+      }
+
       const created = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
       await updateProfile(created.user, { displayName: trimmedName });
-      await setDoc(doc(db, 'users', created.user.uid), {
+      await setDoc(doc(firestore, 'users', created.user.uid), {
         email: trimmedEmail,
         displayName: trimmedName,
         role: 'client',
@@ -2302,8 +2616,23 @@ function AccountScreen({
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+      if (claimSnapshot && !claimSnapshot.empty) {
+        await Promise.all(
+          claimSnapshot.docs.map((projectDoc) =>
+            updateDoc(doc(firestore, 'jobs', projectDoc.id), {
+              clientId: created.user.uid,
+              clientName: trimmedName,
+              clientEmail: trimmedEmail,
+              claimStatus: 'claimed',
+              claimedByUid: created.user.uid,
+              claimedAt: Date.now(),
+            }),
+          ),
+        );
+      }
       setPassword('');
       setConfirmPassword('');
+      setProjectSignupCode('');
     } catch (error) {
       Alert.alert('Sign up failed', 'This email may already be used, or the password was not accepted.');
     } finally {
@@ -2531,6 +2860,16 @@ function AccountScreen({
                 textContentType="newPassword"
               />
             )}
+            {!user && mode === 'sign_up' && (
+              <TextInput
+                style={styles.input}
+                placeholder="Project ID / Signup Code (optional)"
+                value={projectSignupCode}
+                onChangeText={setProjectSignupCode}
+                autoCapitalize="characters"
+                textContentType="oneTimeCode"
+              />
+            )}
             {user ? (
               <PrimaryButton label="Sign Out" icon="log-out-outline" onPress={handleSignOut} />
             ) : mode === 'sign_up' ? (
@@ -2744,16 +3083,20 @@ function PrimaryButton({
 }
 
 function IconTextInput({
+  autoCapitalize,
   error,
   icon,
+  keyboardType,
   multiline,
   onChangeText,
   placeholder,
   textContentType,
   value,
 }: {
+  autoCapitalize?: ComponentProps<typeof TextInput>['autoCapitalize'];
   error?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
+  keyboardType?: ComponentProps<typeof TextInput>['keyboardType'];
   multiline?: boolean;
   onChangeText: (value: string) => void;
   placeholder: string;
@@ -2769,6 +3112,8 @@ function IconTextInput({
         placeholderTextColor="#a4abb4"
         value={value}
         onChangeText={onChangeText}
+        autoCapitalize={autoCapitalize}
+        keyboardType={keyboardType}
         textContentType={textContentType}
         multiline={multiline}
       />
@@ -2934,6 +3279,27 @@ function getPasswordProblem(password: string) {
   if (!/[A-Z]/.test(password)) return 'Use at least one uppercase letter.';
   if (!/\d/.test(password)) return 'Use at least one number.';
   return null;
+}
+
+function normalizeProjectClaimCode(code: string) {
+  const cleaned = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) return '';
+  const withoutPrefix = cleaned.startsWith('KDG') ? cleaned.slice(3) : cleaned;
+  return `KDG-${withoutPrefix}`;
+}
+
+function generateProjectClaimCode(existingCodes: string[]) {
+  const existing = new Set(existingCodes.map(normalizeProjectClaimCode));
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    let suffix = '';
+    for (let index = 0; index < 6; index += 1) {
+      suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    const code = `KDG-${suffix}`;
+    if (!existing.has(code)) return code;
+  }
+  return `KDG-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 }
 
 async function calculateDrivingRoute(sourceAddress: string, destinationAddress: string): Promise<DrivingRouteResult | null> {
@@ -3559,6 +3925,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  claimCodeInline: {
+    color: theme.indigo,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 4,
+  },
   statusPillSmall: {
     maxWidth: 112,
     borderRadius: 8,
@@ -3891,9 +4263,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.indigo,
   },
   requestSentText: {
+    flexShrink: 1,
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '800',
+    textAlign: 'center',
   },
   recurringBox: {
     borderRadius: 8,
