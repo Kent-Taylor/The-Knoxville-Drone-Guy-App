@@ -30,6 +30,8 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
 EXPO_PUBLIC_WEBSITE_URL=https://www.theknoxvilledroneguy.com
 ```
 
@@ -80,13 +82,15 @@ Email/password is the required baseline sign-in method. Google and Apple can als
 
 Apple sign-in requires the iOS app capability and `expo-apple-authentication`. The app uses Apple's identity token with a Firebase `apple.com` credential.
 
-Google sign-in requires the Firebase/Google OAuth web client ID in:
+Google sign-in requires Firebase/Google OAuth client IDs for each platform:
 
 ```sh
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
 ```
 
-Find that value in Google Cloud Console > APIs & Services > Credentials. It usually ends with `.apps.googleusercontent.com`. After changing `.env.local`, restart Expo.
+Find those values in Google Cloud Console > APIs & Services > Credentials. The iOS client should use bundle ID `com.theknoxvilledroneguy.app`. Client IDs usually end with `.apps.googleusercontent.com`. After changing `.env.local`, restart Expo.
 
 Google sign-in cannot be fully tested in Expo Go. Google's current OAuth policy blocks the browser-based Expo Go flow. Use a development build or TestFlight/App Store build with native Google sign-in configured for production testing.
 

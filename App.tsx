@@ -88,7 +88,15 @@ import {
 WebBrowser.maybeCompleteAuthSession();
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
-const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+const googlePlatformClientId =
+  Platform.select({
+    ios: googleIosClientId,
+    android: googleAndroidClientId,
+    default: googleWebClientId,
+  }) || googleWebClientId;
 const isRunningInExpoGo = Constants.appOwnership === 'expo';
 const HOME_BASE_ADDRESS = '742 Whitesburg Dr, Knoxville, TN 37918';
 const addressSuggestions = [
@@ -2697,9 +2705,10 @@ function ConfiguredGoogleSignInButton({
   onToken: (idToken: string) => Promise<void>;
 }) {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: googleClientId,
-    iosClientId: googleClientId,
-    webClientId: googleClientId,
+    clientId: googlePlatformClientId,
+    iosClientId: googleIosClientId || undefined,
+    androidClientId: googleAndroidClientId || undefined,
+    webClientId: googleWebClientId || undefined,
     selectAccount: true,
   });
 
@@ -2747,14 +2756,14 @@ function GoogleSignInButton({
     );
   }
 
-  if (!googleClientId) {
+  if (!googlePlatformClientId) {
     return (
       <Pressable
         style={styles.socialAuthButton}
         onPress={() =>
           Alert.alert(
             'Google sign-in needs one more value',
-            'Google is enabled in Firebase, but the app still needs EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID before Google sign-in can run.',
+            'Google is enabled in Firebase, but the app still needs the OAuth client ID for this platform before Google sign-in can run.',
           )
         }
       >
