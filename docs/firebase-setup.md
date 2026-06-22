@@ -29,6 +29,7 @@ EXPO_PUBLIC_FIREBASE_PROJECT_ID=
 EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
 EXPO_PUBLIC_WEBSITE_URL=https://www.theknoxvilledroneguy.com
 ```
 
@@ -72,6 +73,20 @@ await admin.auth().setCustomUserClaims(uid, { admin: true });
 Clients should not receive the admin claim. Client access is controlled by `clientId` on chat threads and jobs.
 
 After setting the claim, sign out and sign back in so the app receives a fresh token.
+
+## Social Sign-In
+
+Email/password is the required baseline sign-in method. Google and Apple can also be enabled in Firebase Authentication.
+
+Apple sign-in requires the iOS app capability and `expo-apple-authentication`. The app uses Apple's identity token with a Firebase `apple.com` credential.
+
+Google sign-in requires the Firebase/Google OAuth web client ID in:
+
+```sh
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
+```
+
+Find that value in Google Cloud Console > APIs & Services > Credentials. It usually ends with `.apps.googleusercontent.com`. After changing `.env.local`, restart Expo.
 
 ## Collections
 

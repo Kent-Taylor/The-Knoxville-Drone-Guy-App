@@ -8,6 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.theknoxvilledroneguy.app",
       "infoPlist": {
         "NSCameraUsageDescription": "The Knoxville Drone Guy uses the camera so clients and admin can attach photos or videos in chat and job updates.",
@@ -56,7 +57,9 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-video"
+      "expo-apple-authentication",
+      "expo-video",
+      "expo-web-browser"
     ],
     "extra": {
       "websiteUrl": "https://www.theknoxvilledroneguy.com"

@@ -1,13 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
+import * as Google from 'expo-auth-session/providers/google';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import type { ComponentProps } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,9 +35,12 @@ import MapView, { Marker } from 'react-native-maps';
 import { WebView } from 'react-native-webview';
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  OAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithCredential,
   signOut,
   updateEmail,
   updatePassword,
@@ -77,7 +84,10 @@ import {
   videoEditFormats,
 } from './src/types';
 
+WebBrowser.maybeCompleteAuthSession();
+
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
+const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 const HOME_BASE_ADDRESS = '742 Whitesburg Dr, Knoxville, TN 37918';
 const addressSuggestions = [
   '742 Whitesburg Dr, Knoxville, TN 37918',
@@ -2677,6 +2687,67 @@ function JobUpdateRow({
   );
 }
 
+function ConfiguredGoogleSignInButton({
+  disabled,
+  onToken,
+}: {
+  disabled: boolean;
+  onToken: (idToken: string) => Promise<void>;
+}) {
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: googleClientId,
+    iosClientId: googleClientId,
+    webClientId: googleClientId,
+    selectAccount: true,
+  });
+
+  useEffect(() => {
+    if (response?.type !== 'success') return;
+    const idToken = response.params.id_token;
+    if (idToken) {
+      onToken(idToken);
+    }
+  }, [onToken, response]);
+
+  return (
+    <Pressable
+      style={[styles.socialAuthButton, (!request || disabled) && styles.disabledButton]}
+      disabled={!request || disabled}
+      onPress={() => promptAsync()}
+    >
+      <Ionicons name="logo-google" size={20} color={theme.indigo} />
+      <Text style={styles.socialAuthText}>Continue With Google</Text>
+    </Pressable>
+  );
+}
+
+function GoogleSignInButton({
+  disabled,
+  onToken,
+}: {
+  disabled: boolean;
+  onToken: (idToken: string) => Promise<void>;
+}) {
+  if (!googleClientId) {
+    return (
+      <Pressable
+        style={styles.socialAuthButton}
+        onPress={() =>
+          Alert.alert(
+            'Google sign-in needs one more value',
+            'Google is enabled in Firebase, but the app still needs EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID before Google sign-in can run.',
+          )
+        }
+      >
+        <Ionicons name="logo-google" size={20} color={theme.indigo} />
+        <Text style={styles.socialAuthText}>Continue With Google</Text>
+      </Pressable>
+    );
+  }
+
+  return <ConfiguredGoogleSignInButton disabled={disabled} onToken={onToken} />;
+}
+
 function AccountScreen({
   onUpdateSettings,
   user,
@@ -2715,6 +2786,69 @@ function AccountScreen({
   useEffect(() => {
     if (!user) setShowSettingsPage(false);
   }, [user]);
+
+  const handleGoogleToken = useCallback(async (idToken: string) => {
+    if (!auth) {
+      Alert.alert('Firebase not connected', 'Restart Expo so the app can load the Firebase settings.');
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+    } catch (error) {
+      Alert.alert('Google sign-in failed', getFirebaseAuthMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
+  const handleAppleSignIn = async () => {
+    if (!auth) {
+      Alert.alert('Firebase not connected', 'Restart Expo so the app can load the Firebase settings.');
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    try {
+      const available = await AppleAuthentication.isAvailableAsync();
+      if (!available) {
+        Alert.alert('Apple sign-in unavailable', 'Sign in with Apple is only available on supported Apple devices.');
+        return;
+      }
+      const rawNonce = generateNonce();
+      const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+      const appleCredential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      if (!appleCredential.identityToken) {
+        Alert.alert('Apple sign-in failed', 'Apple did not return an identity token.');
+        return;
+      }
+      const provider = new OAuthProvider('apple.com');
+      const firebaseCredential = provider.credential({
+        idToken: appleCredential.identityToken,
+        rawNonce,
+      });
+      const result = await signInWithCredential(auth, firebaseCredential);
+      const appleName = appleCredential.fullName
+        ? AppleAuthentication.formatFullName(appleCredential.fullName, 'default').trim()
+        : '';
+      if (appleName && !result.user.displayName) {
+        await updateProfile(result.user, { displayName: appleName });
+      }
+    } catch (error) {
+      if (isCanceledAuthError(error)) return;
+      Alert.alert('Apple sign-in failed', getFirebaseAuthMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleSignIn = async () => {
     if (!auth) {
@@ -2988,25 +3122,28 @@ function AccountScreen({
               ? 'Use email and password to access your projects, chats, and updates.'
               : 'Firebase sign-in will be enabled after configuration.')}
         </Text>
-        {isFirebaseConfigured && (
+        {isFirebaseConfigured && user && (
           <View style={styles.signInBox}>
-            {!user && (
-              <View style={styles.authToggle}>
-                <Pressable
-                  style={[styles.authToggleButton, mode === 'sign_in' && styles.activeAuthToggleButton]}
-                  onPress={() => setMode('sign_in')}
-                >
-                  <Text style={[styles.authToggleText, mode === 'sign_in' && styles.activeAuthToggleText]}>Sign In</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.authToggleButton, mode === 'sign_up' && styles.activeAuthToggleButton]}
-                  onPress={() => setMode('sign_up')}
-                >
-                  <Text style={[styles.authToggleText, mode === 'sign_up' && styles.activeAuthToggleText]}>Sign Up</Text>
-                </Pressable>
-              </View>
-            )}
-            {!user && mode === 'sign_up' && (
+            <PrimaryButton label="Sign Out" icon="log-out-outline" onPress={handleSignOut} />
+          </View>
+        )}
+        {isFirebaseConfigured && !user && (
+          <View style={styles.signInBox}>
+            <View style={styles.authToggle}>
+              <Pressable
+                style={[styles.authToggleButton, mode === 'sign_in' && styles.activeAuthToggleButton]}
+                onPress={() => setMode('sign_in')}
+              >
+                <Text style={[styles.authToggleText, mode === 'sign_in' && styles.activeAuthToggleText]}>Sign In</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.authToggleButton, mode === 'sign_up' && styles.activeAuthToggleButton]}
+                onPress={() => setMode('sign_up')}
+              >
+                <Text style={[styles.authToggleText, mode === 'sign_up' && styles.activeAuthToggleText]}>Sign Up</Text>
+              </Pressable>
+            </View>
+            {mode === 'sign_up' && (
               <TextInput
                 style={styles.input}
                 placeholder="Name or business name"
@@ -3031,7 +3168,7 @@ function AccountScreen({
               secureTextEntry
               textContentType={mode === 'sign_up' ? 'newPassword' : 'password'}
             />
-            {!user && mode === 'sign_up' && (
+            {mode === 'sign_up' && (
               <TextInput
                 style={styles.input}
                 placeholder="Confirm password"
@@ -3041,7 +3178,7 @@ function AccountScreen({
                 textContentType="newPassword"
               />
             )}
-            {!user && mode === 'sign_up' && (
+            {mode === 'sign_up' && (
               <TextInput
                 style={styles.input}
                 placeholder="Project ID / Signup Code (optional)"
@@ -3051,24 +3188,36 @@ function AccountScreen({
                 textContentType="oneTimeCode"
               />
             )}
-            {user ? (
-              <PrimaryButton label="Sign Out" icon="log-out-outline" onPress={handleSignOut} />
-            ) : mode === 'sign_up' ? (
+            {mode === 'sign_up' ? (
               <PrimaryButton label={busy ? 'Creating...' : 'Create Account'} icon="person-add-outline" onPress={handleSignUp} />
             ) : (
               <PrimaryButton label={busy ? 'Signing In...' : 'Sign In'} icon="log-in-outline" onPress={handleSignIn} />
             )}
-            {!user && mode === 'sign_in' && (
+            {mode === 'sign_in' && (
               <Pressable style={styles.linkButton} onPress={handlePasswordReset} disabled={busy}>
                 <Text style={styles.linkButtonText}>Forgot Password?</Text>
               </Pressable>
             )}
+            <View style={styles.socialAuthGroup}>
+              <GoogleSignInButton disabled={busy} onToken={handleGoogleToken} />
+              {Platform.OS === 'ios' && (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={8}
+                  style={styles.appleAuthButton}
+                  onPress={handleAppleSignIn}
+                />
+              )}
+            </View>
           </View>
         )}
-        <View style={styles.accountActions}>
-          <PrimaryButton label="Use Client Demo" icon="person-outline" onPress={() => switchRole('client')} />
-          <PrimaryButton label="Use Admin Demo" icon="shield-checkmark-outline" onPress={() => switchRole('admin')} />
-        </View>
+        {!user && (
+          <View style={styles.accountActions}>
+            <PrimaryButton label="Use Client Demo" icon="person-outline" onPress={() => switchRole('client')} />
+            <PrimaryButton label="Use Admin Demo" icon="shield-checkmark-outline" onPress={() => switchRole('admin')} />
+          </View>
+        )}
       </View>
       {user && (
         <Pressable style={styles.settingsEntryButton} onPress={() => setShowSettingsPage(true)}>
@@ -3465,6 +3614,24 @@ function getPasswordProblem(password: string) {
   if (!/[A-Z]/.test(password)) return 'Use at least one uppercase letter.';
   if (!/\d/.test(password)) return 'Use at least one number.';
   return null;
+}
+
+function generateNonce(length = 32) {
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+  let nonce = '';
+  for (let index = 0; index < length; index += 1) {
+    nonce += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return nonce;
+}
+
+function isCanceledAuthError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error.code === 'ERR_REQUEST_CANCELED' || error.code === 'ERR_CANCELED')
+  );
 }
 
 function getFirebaseAuthMessage(error: unknown) {
@@ -4839,6 +5006,31 @@ const styles = StyleSheet.create({
     color: theme.indigo,
     fontSize: 14,
     fontWeight: '800',
+  },
+  socialAuthGroup: {
+    gap: 10,
+    marginTop: 4,
+  },
+  socialAuthButton: {
+    minHeight: 50,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.surface,
+  },
+  socialAuthText: {
+    color: theme.indigo,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  appleAuthButton: {
+    width: '100%',
+    height: 50,
   },
   primaryButton: {
     minHeight: 52,
