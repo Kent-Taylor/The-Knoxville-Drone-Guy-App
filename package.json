@@ -39,8 +39,8 @@
     "eas:init": "npx eas-cli@latest init",
     "eas:env:push:production": "npx eas-cli@latest env:push production --path .env.local",
     "testflight:build": "npx eas-cli@latest build -p ios --profile production",
-    "testflight:submit": "npx eas-cli@latest submit -p ios --latest --profile production --what-to-test \"Internal TestFlight smoke test\"",
-    "testflight": "npx eas-cli@latest build -p ios --profile production --auto-submit-with-profile production --what-to-test \"Internal TestFlight smoke test\"",
+    "testflight:submit": "npx eas-cli@latest submit -p ios --latest --profile production",
+    "testflight": "npx eas-cli@latest build -p ios --profile production --auto-submit-with-profile production",
     "firebase:deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage",
     "firebase:deploy:functions": "npx firebase-tools deploy --only functions",
     "firebase:deploy": "npx firebase-tools deploy --only firestore:rules,storage,functions"
