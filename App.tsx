@@ -32,6 +32,7 @@ import { WebView } from 'react-native-webview';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateEmail,
@@ -2710,7 +2711,11 @@ function AccountScreen({
   }, [user]);
 
   const handleSignIn = async () => {
-    if (!auth) return;
+    if (!auth) {
+      Alert.alert('Firebase not connected', 'Restart Expo so the app can load the Firebase settings.');
+      return;
+    }
+    if (busy) return;
     if (!email.trim() || !password) {
       Alert.alert('Sign in failed', 'Enter your email and password.');
       return;
@@ -2719,14 +2724,18 @@ function AccountScreen({
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (error) {
-      Alert.alert('Sign in failed', 'Check your email and password.');
+      Alert.alert('Sign in failed', getFirebaseAuthMessage(error));
     } finally {
       setBusy(false);
     }
   };
 
   const handleSignUp = async () => {
-    if (!auth || !db) return;
+    if (!auth || !db) {
+      Alert.alert('Firebase not connected', 'Restart Expo so the app can load the Firebase settings.');
+      return;
+    }
+    if (busy) return;
     const firestore = db;
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedName = displayName.trim();
@@ -2774,10 +2783,38 @@ function AccountScreen({
       setConfirmPassword('');
       setProjectSignupCode('');
     } catch (error) {
-      Alert.alert('Sign up failed', 'This email may already be used, or the password was not accepted.');
+      Alert.alert('Sign up failed', getFirebaseAuthMessage(error));
     } finally {
       setBusy(false);
     }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!auth) {
+      Alert.alert('Firebase not connected', 'Restart Expo so the app can load the Firebase settings.');
+      return;
+    }
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      Alert.alert('Password reset', 'Enter your email address first.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(auth, trimmedEmail);
+      Alert.alert('Password reset sent', `Check ${trimmedEmail} for the reset link.`);
+    } catch (error) {
+      Alert.alert('Password reset failed', getFirebaseAuthMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleProviderUnavailable = (provider: 'Google' | 'Apple') => {
+    Alert.alert(
+      `${provider} sign-in is not ready yet`,
+      `${provider} is enabled in Firebase, but the app still needs the native ${provider} sign-in setup before this button can create sessions.`,
+    );
   };
 
   const handleSignOut = async () => {
@@ -3016,6 +3053,25 @@ function AccountScreen({
               <PrimaryButton label={busy ? 'Creating...' : 'Create Account'} icon="person-add-outline" onPress={handleSignUp} />
             ) : (
               <PrimaryButton label={busy ? 'Signing In...' : 'Sign In'} icon="log-in-outline" onPress={handleSignIn} />
+            )}
+            {!user && mode === 'sign_in' && (
+              <Pressable style={styles.linkButton} onPress={handlePasswordReset} disabled={busy}>
+                <Text style={styles.linkButtonText}>Forgot Password?</Text>
+              </Pressable>
+            )}
+            {!user && (
+              <View style={styles.providerAuthGroup}>
+                <Pressable style={styles.providerAuthButton} onPress={() => handleProviderUnavailable('Google')}>
+                  <Ionicons name="logo-google" size={20} color={theme.indigo} />
+                  <Text style={styles.providerAuthText}>Continue With Google</Text>
+                </Pressable>
+                {Platform.OS === 'ios' && (
+                  <Pressable style={styles.providerAuthButton} onPress={() => handleProviderUnavailable('Apple')}>
+                    <Ionicons name="logo-apple" size={22} color={theme.indigo} />
+                    <Text style={styles.providerAuthText}>Continue With Apple</Text>
+                  </Pressable>
+                )}
+              </View>
             )}
           </View>
         )}
@@ -3419,6 +3475,25 @@ function getPasswordProblem(password: string) {
   if (!/[A-Z]/.test(password)) return 'Use at least one uppercase letter.';
   if (!/\d/.test(password)) return 'Use at least one number.';
   return null;
+}
+
+function getFirebaseAuthMessage(error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : '';
+  const messages: Record<string, string> = {
+    'auth/email-already-in-use': 'That email already has an account. Use Sign In or reset the password.',
+    'auth/invalid-email': 'Enter a valid email address.',
+    'auth/invalid-credential': 'That email and password did not match a Firebase account.',
+    'auth/user-not-found': 'No account exists for that email yet. Use Sign Up first.',
+    'auth/wrong-password': 'That password is not correct. Use Forgot Password if needed.',
+    'auth/weak-password': 'Use a stronger password with at least 8 characters, uppercase, lowercase, and a number.',
+    'auth/network-request-failed': 'Network connection failed. Check your connection and try again.',
+    'auth/operation-not-allowed': 'This sign-in method is not enabled in Firebase Authentication.',
+    'auth/too-many-requests': 'Firebase temporarily blocked attempts for this account. Wait a bit, then try again.',
+  };
+  return messages[code] ?? `Firebase returned ${code || 'an unknown auth error'}. Try again after restarting Expo.`;
 }
 
 function normalizeProjectClaimCode(code: string) {
@@ -4764,6 +4839,37 @@ const styles = StyleSheet.create({
   },
   activeAuthToggleText: {
     color: theme.indigo,
+  },
+  linkButton: {
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkButtonText: {
+    color: theme.indigo,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  providerAuthGroup: {
+    gap: 10,
+    marginTop: 4,
+  },
+  providerAuthButton: {
+    minHeight: 50,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.surface,
+  },
+  providerAuthText: {
+    color: theme.indigo,
+    fontSize: 15,
+    fontWeight: '800',
   },
   primaryButton: {
     minHeight: 52,
