@@ -30,9 +30,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage",
-    "firebase:deploy:functions": "firebase deploy --only functions",
-    "firebase:deploy": "firebase deploy --only firestore:rules,storage,functions"
+    "firebase:deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage",
+    "firebase:deploy:functions": "npx firebase-tools deploy --only functions",
+    "firebase:deploy": "npx firebase-tools deploy --only firestore:rules,storage,functions"
   },
   "private": true
 }
