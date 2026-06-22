@@ -88,6 +88,8 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
 
 Find that value in Google Cloud Console > APIs & Services > Credentials. It usually ends with `.apps.googleusercontent.com`. After changing `.env.local`, restart Expo.
 
+Google sign-in cannot be fully tested in Expo Go. Google's current OAuth policy blocks the browser-based Expo Go flow. Use a development build or TestFlight/App Store build with native Google sign-in configured for production testing.
+
 ## Collections
 
 - `users/{uid}`: email, displayName, role, notificationPreference, expoPushTokens, createdAt, updatedAt.

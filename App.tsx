@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
 import * as Google from 'expo-auth-session/providers/google';
@@ -88,6 +89,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const websiteUrl = 'https://www.theknoxvilledroneguy.com';
 const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const isRunningInExpoGo = Constants.appOwnership === 'expo';
 const HOME_BASE_ADDRESS = '742 Whitesburg Dr, Knoxville, TN 37918';
 const addressSuggestions = [
   '742 Whitesburg Dr, Knoxville, TN 37918',
@@ -2728,6 +2730,23 @@ function GoogleSignInButton({
   disabled: boolean;
   onToken: (idToken: string) => Promise<void>;
 }) {
+  if (isRunningInExpoGo) {
+    return (
+      <Pressable
+        style={styles.socialAuthButton}
+        onPress={() =>
+          Alert.alert(
+            'Google sign-in needs a development build',
+            'Google blocks this Expo Go browser sign-in flow. The app is ready for Google sign-in, but it needs a native development/TestFlight build with Google Sign-In configured.',
+          )
+        }
+      >
+        <Ionicons name="logo-google" size={20} color={theme.indigo} />
+        <Text style={styles.socialAuthText}>Continue With Google</Text>
+      </Pressable>
+    );
+  }
+
   if (!googleClientId) {
     return (
       <Pressable
