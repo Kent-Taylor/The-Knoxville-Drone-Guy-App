@@ -60,7 +60,8 @@
       "@react-native-community/datetimepicker",
       "expo-apple-authentication",
       "expo-video",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "extra": {
       "websiteUrl": "https://www.theknoxvilledroneguy.com",

@@ -11,7 +11,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ErrorInfo, ReactNode } from 'react';
+import React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -260,6 +261,30 @@ const notificationPreferenceOptions: {
   { value: 'progress_updates', label: 'Progress Updates', icon: 'briefcase-outline' },
 ];
 
+class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error?: Error }> {
+  state: { error?: Error } = {};
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('App startup error', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <SafeAreaView style={styles.errorScreen}>
+          <Text style={styles.errorTitle}>The app hit a startup error</Text>
+          <Text style={styles.errorText}>{this.state.error.message}</Text>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -271,6 +296,14 @@ Notifications.setNotificationHandler({
 });
 
 export default function App() {
+  return (
+    <AppErrorBoundary>
+      <RootApp />
+    </AppErrorBoundary>
+  );
+}
+
+function RootApp() {
   const [activeTab, setActiveTab] = useState<TabKey>('website');
   const [data, setData] = useState<AppData>(initialData);
   const [selectedThreadId, setSelectedThreadId] = useState(demoThread.id);
@@ -3898,6 +3931,23 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: theme.appBg,
+  },
+  errorScreen: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: theme.appBg,
+  },
+  errorTitle: {
+    color: theme.ink,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  errorText: {
+    color: theme.muted,
+    fontSize: 15,
+    lineHeight: 22,
   },
   header: {
     paddingHorizontal: 18,
