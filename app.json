@@ -62,7 +62,11 @@
       "expo-web-browser"
     ],
     "extra": {
-      "websiteUrl": "https://www.theknoxvilledroneguy.com"
-    }
+      "websiteUrl": "https://www.theknoxvilledroneguy.com",
+      "eas": {
+        "projectId": "0571db16-534c-4833-b66f-1d64929feea1"
+      }
+    },
+    "owner": "theknoxvilledroneguy"
   }
 }
