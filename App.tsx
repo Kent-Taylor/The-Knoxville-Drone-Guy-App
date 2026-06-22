@@ -261,6 +261,7 @@ export default function App() {
   const [pendingChatReference, setPendingChatReference] = useState<ChatReference | undefined>();
   const [focusedRequestId, setFocusedRequestId] = useState<string | undefined>();
   const referenceSlide = useRef(new Animated.Value(0)).current;
+  const lastSignedInUid = useRef<string | null>(null);
   const user = data.user;
   const isAdmin = user?.role === 'admin';
 
@@ -330,6 +331,7 @@ export default function App() {
     const firestore = db;
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
+        lastSignedInUid.current = null;
         setData((current) => ({ ...current, user: null, clients: [], threads: [], messages: [], jobs: [], shootRequests: [] }));
         return;
       }
@@ -361,6 +363,10 @@ export default function App() {
         { merge: true },
       );
       setData((current) => ({ ...current, user: appUser }));
+      if (lastSignedInUid.current !== firebaseUser.uid) {
+        lastSignedInUid.current = firebaseUser.uid;
+        setActiveTab('jobs');
+      }
     });
   }, []);
 
