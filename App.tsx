@@ -2810,13 +2810,6 @@ function AccountScreen({
     }
   };
 
-  const handleProviderUnavailable = (provider: 'Google' | 'Apple') => {
-    Alert.alert(
-      `${provider} sign-in is not ready yet`,
-      `${provider} is enabled in Firebase, but the app still needs the native ${provider} sign-in setup before this button can create sessions.`,
-    );
-  };
-
   const handleSignOut = async () => {
     if (!auth) return;
     await signOut(auth);
@@ -2983,7 +2976,12 @@ function AccountScreen({
     >
       <View style={styles.accountCard}>
         <Text style={styles.sectionTitle}>{user?.displayName ?? 'Sign in'}</Text>
-        <Text style={styles.muted}>{user?.email ?? 'Firebase invite sign-in will be enabled after configuration.'}</Text>
+        <Text style={styles.muted}>
+          {user?.email ??
+            (isFirebaseConfigured
+              ? 'Use email and password to access your projects, chats, and updates.'
+              : 'Firebase sign-in will be enabled after configuration.')}
+        </Text>
         {isFirebaseConfigured && (
           <View style={styles.signInBox}>
             {!user && (
@@ -3058,20 +3056,6 @@ function AccountScreen({
               <Pressable style={styles.linkButton} onPress={handlePasswordReset} disabled={busy}>
                 <Text style={styles.linkButtonText}>Forgot Password?</Text>
               </Pressable>
-            )}
-            {!user && (
-              <View style={styles.providerAuthGroup}>
-                <Pressable style={styles.providerAuthButton} onPress={() => handleProviderUnavailable('Google')}>
-                  <Ionicons name="logo-google" size={20} color={theme.indigo} />
-                  <Text style={styles.providerAuthText}>Continue With Google</Text>
-                </Pressable>
-                {Platform.OS === 'ios' && (
-                  <Pressable style={styles.providerAuthButton} onPress={() => handleProviderUnavailable('Apple')}>
-                    <Ionicons name="logo-apple" size={22} color={theme.indigo} />
-                    <Text style={styles.providerAuthText}>Continue With Apple</Text>
-                  </Pressable>
-                )}
-              </View>
             )}
           </View>
         )}
@@ -4848,27 +4832,6 @@ const styles = StyleSheet.create({
   linkButtonText: {
     color: theme.indigo,
     fontSize: 14,
-    fontWeight: '800',
-  },
-  providerAuthGroup: {
-    gap: 10,
-    marginTop: 4,
-  },
-  providerAuthButton: {
-    minHeight: 50,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.line,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.surface,
-  },
-  providerAuthText: {
-    color: theme.indigo,
-    fontSize: 15,
     fontWeight: '800',
   },
   primaryButton: {
