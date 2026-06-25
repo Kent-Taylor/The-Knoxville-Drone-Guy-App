@@ -49,6 +49,7 @@ exports.claimProjectByCode = onCall(async (request) => {
   const displayName = userData.displayName || authUser.displayName || authUser.email || 'Client';
   const email = userData.email || authUser.email || '';
   const projectIds = [];
+  const previousClientIds = new Set();
 
   await db.runTransaction(async (transaction) => {
     const freshSnapshot = await transaction.get(
@@ -63,6 +64,10 @@ exports.claimProjectByCode = onCall(async (request) => {
     }
 
     freshSnapshot.docs.forEach((projectDoc) => {
+      const projectData = projectDoc.data() || {};
+      if (projectData.clientId && String(projectData.clientId).startsWith('unclaimed-')) {
+        previousClientIds.add(projectData.clientId);
+      }
       projectIds.push(projectDoc.id);
       transaction.update(projectDoc.ref, {
         clientId: userId,
@@ -74,6 +79,22 @@ exports.claimProjectByCode = onCall(async (request) => {
       });
     });
   });
+
+  await Promise.all(
+    [...previousClientIds].map(async (previousClientId) => {
+      const threadsSnapshot = await db.collection('chatThreads').where('clientId', '==', previousClientId).get();
+      const batch = db.batch();
+      threadsSnapshot.docs.forEach((threadDoc) => {
+        batch.update(threadDoc.ref, {
+          clientId: userId,
+          clientName: displayName,
+          updatedAt: Date.now(),
+        });
+      });
+      batch.delete(db.collection('users').doc(previousClientId));
+      await batch.commit();
+    }),
+  );
 
   return { projectIds };
 });

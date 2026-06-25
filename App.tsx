@@ -692,6 +692,7 @@ function RootApp() {
     const claimCode = linkedClient
       ? undefined
       : generateProjectClaimCode(data.jobs.map((job) => job.projectClaimCode).filter(Boolean) as string[]);
+    const placeholderClientId = claimCode ? `unclaimed-${claimCode}` : undefined;
     const jobId = `job-${Date.now()}`;
     const initialUpdate: JobUpdate = {
       id: `update-${Date.now()}`,
@@ -702,7 +703,7 @@ function RootApp() {
     };
     const job: Job = {
       id: jobId,
-      clientId: linkedClient?.uid ?? `unclaimed-${claimCode}`,
+      clientId: linkedClient?.uid ?? placeholderClientId ?? `unclaimed-${jobId}`,
       clientName: linkedClient?.displayName ?? project.clientName.trim(),
       clientEmail: linkedClient?.email ?? project.clientEmail?.trim() ?? undefined,
       clientPhone: project.clientPhone?.trim() || undefined,
@@ -723,12 +724,42 @@ function RootApp() {
     };
 
     if (isFirebaseConfigured && db) {
+      if (!linkedClient && placeholderClientId) {
+        await setDoc(
+          doc(db, 'users', placeholderClientId),
+          toFirestoreData({
+            email: project.clientEmail?.trim() || '',
+            displayName: project.clientName.trim(),
+            phone: project.clientPhone?.trim() || '',
+            role: 'client',
+            notificationPreference: 'all',
+            placeholder: true,
+            projectClaimCode: claimCode,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }),
+          { merge: true },
+        );
+      }
       await setDoc(doc(db, 'jobs', job.id), toFirestoreData({ ...job, updates: [] }));
       await setDoc(doc(db, 'jobs', job.id, 'updates', initialUpdate.id), toFirestoreData(initialUpdate));
     }
 
     setData((current) => ({
       ...current,
+      clients:
+        !linkedClient && placeholderClientId
+          ? [
+              {
+                uid: placeholderClientId,
+                email: project.clientEmail?.trim() || '',
+                displayName: project.clientName.trim(),
+                role: 'client',
+                notificationPreference: 'all',
+              },
+              ...current.clients,
+            ]
+          : current.clients,
       jobs: [job, ...current.jobs],
     }));
     setSelectedJobId(job.id);
@@ -1885,6 +1916,7 @@ function AdminCreateProjectForm({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState('');
+  const submitLock = useRef(false);
 
   const sortedClients = useMemo(
     () => [...clients].sort((first, second) => first.displayName.localeCompare(second.displayName)),
@@ -1927,7 +1959,8 @@ function AdminCreateProjectForm({
   const hasError = (field: string) => validationErrors.includes(field);
 
   const submit = async () => {
-    if (submitting) return;
+    if (submitting || submitLock.current) return;
+    submitLock.current = true;
     const errors = [
       ...(clientMode === 'existing' && !selectedClient ? ['selectedClient'] : []),
       ...(clientMode === 'new' && !clientName.trim() ? ['clientName'] : []),
@@ -1939,6 +1972,7 @@ function AdminCreateProjectForm({
     ];
     setValidationErrors(errors);
     if (errors.length > 0 || !scheduledDate || !scheduledTime) {
+      submitLock.current = false;
       Alert.alert('Project not created', 'Fill out the required project details, then tap Create Project again.');
       return;
     }
@@ -1978,6 +2012,7 @@ function AdminCreateProjectForm({
     } catch (error) {
       Alert.alert('Project not created', getFirebaseWriteMessage(error));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
@@ -2227,6 +2262,7 @@ function ShootRequestForm({
   const [finishedVideoLengthOther, setFinishedVideoLengthOther] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [requestExpanded, setRequestExpanded] = useState(false);
+  const submitLock = useRef(false);
 
   const filteredAddresses = useMemo(() => {
     const needle = projectAddress.trim().toLowerCase();
@@ -2263,7 +2299,8 @@ function ShootRequestForm({
   };
 
   const submit = async () => {
-    if (submitting) return;
+    if (submitting || submitLock.current) return;
+    submitLock.current = true;
     const selectedOther = services.includes('other');
     const selectedVideoEdit = services.includes('edit_into_video');
     const requiresFinishedVideoLength = selectedVideoEdit && (videoEditFormat === 'long_format' || videoEditFormat === 'other');
@@ -2289,18 +2326,23 @@ function ShootRequestForm({
 
     setValidationErrors(errors);
     if (errors.length > 0) {
+      submitLock.current = false;
       Alert.alert('Request not sent', 'Fill out every required field and choose at least one project scope option.');
       return;
     }
 
     const confirmedRequestedDate = requestedDate;
     const confirmedRequestedTime = requestedTime;
-    if (!confirmedRequestedDate || !confirmedRequestedTime) return;
+    if (!confirmedRequestedDate || !confirmedRequestedTime) {
+      submitLock.current = false;
+      return;
+    }
 
     const requestedDateTime = new Date(confirmedRequestedDate);
     requestedDateTime.setHours(confirmedRequestedTime.getHours(), confirmedRequestedTime.getMinutes(), 0, 0);
 
     if (requestedDateTime < tomorrow) {
+      submitLock.current = false;
       Alert.alert('Choose another date', 'Same-day project requests are disabled.');
       return;
     }
@@ -2349,6 +2391,7 @@ function ShootRequestForm({
     } catch (error) {
       Alert.alert('Request not sent', getFirebaseWriteMessage(error));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
@@ -3421,7 +3464,7 @@ function AccountScreen({
             </View>
           </View>
         )}
-        {!user && (
+        {!isFirebaseConfigured && !user && (
           <View style={styles.accountActions}>
             <PrimaryButton label="Use Client Demo" icon="person-outline" onPress={() => switchRole('client')} />
             <PrimaryButton label="Use Admin Demo" icon="shield-checkmark-outline" onPress={() => switchRole('admin')} />
@@ -4076,8 +4119,8 @@ async function registerForNotifications() {
     Alert.alert('Notifications disabled', 'Enable notifications to receive chat and job progress alerts.');
     return;
   }
-  const token = await Notifications.getExpoPushTokenAsync();
-  Alert.alert('Notification token ready', token.data);
+  await Notifications.getExpoPushTokenAsync();
+  Alert.alert('Notifications enabled', 'This device can receive app notifications.');
 }
 
 async function scheduleLocalNotification(title: string, body: string) {
