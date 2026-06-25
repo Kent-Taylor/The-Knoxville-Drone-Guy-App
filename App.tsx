@@ -203,21 +203,23 @@ const demoShootRequest: ShootRequest = {
 };
 
 const initialData: AppData = {
-  user: clientUser,
-  clients: [clientUser],
-  threads: [demoThread],
-  messages: [
-    {
-      id: 'message-1',
-      threadId: demoThread.id,
-      senderId: adminUser.uid,
-      senderName: adminUser.displayName,
-      body: 'Thanks, I will keep you updated here.',
-      createdAt: demoThread.updatedAt,
-    },
-  ],
-  jobs: [demoJob, demoSecondJob],
-  shootRequests: [demoShootRequest],
+  user: isFirebaseConfigured ? null : clientUser,
+  clients: isFirebaseConfigured ? [] : [clientUser],
+  threads: isFirebaseConfigured ? [] : [demoThread],
+  messages: isFirebaseConfigured
+    ? []
+    : [
+        {
+          id: 'message-1',
+          threadId: demoThread.id,
+          senderId: adminUser.uid,
+          senderName: adminUser.displayName,
+          body: 'Thanks, I will keep you updated here.',
+          createdAt: demoThread.updatedAt,
+        },
+      ],
+  jobs: isFirebaseConfigured ? [] : [demoJob, demoSecondJob],
+  shootRequests: isFirebaseConfigured ? [] : [demoShootRequest],
 };
 
 type TabKey = 'website' | 'chat' | 'jobs' | 'notifications' | 'account';
@@ -888,6 +890,34 @@ function RootApp() {
     setActiveTab('chat');
   };
 
+  const startChatThread = async (client?: AppUser) => {
+    if (!user) return;
+    const targetClient = isAdmin ? client : user;
+    if (!targetClient) {
+      Alert.alert('Choose a client', 'Select a client before starting a new message.');
+      return;
+    }
+    const existingThread = data.threads.find((thread) => thread.clientId === targetClient.uid);
+    if (existingThread) {
+      setSelectedThreadId(existingThread.id);
+      return;
+    }
+
+    const thread: ChatThread = {
+      id: `thread-${targetClient.uid}`,
+      clientId: targetClient.uid,
+      clientName: targetClient.displayName,
+      lastMessage: '',
+      updatedAt: Date.now(),
+    };
+
+    if (isFirebaseConfigured && db) {
+      await setDoc(doc(db, 'chatThreads', thread.id), thread);
+    }
+    setData((current) => ({ ...current, threads: [thread, ...current.threads] }));
+    setSelectedThreadId(thread.id);
+  };
+
   const openShootRequestReference = (requestId: string) => {
     setFocusedRequestId(requestId);
     referenceSlide.setValue(1);
@@ -927,10 +957,12 @@ function RootApp() {
           onOpenMedia={setSelectedMedia}
           onOpenReference={openShootRequestReference}
           onSend={sendMessage}
+          onStartThread={startChatThread}
           pendingReference={pendingChatReference}
           selectedThread={selectedThread}
           setSelectedThreadId={setSelectedThreadId}
           threads={visibleThreads}
+          clients={data.clients}
           user={user}
         />
       );
@@ -979,9 +1011,11 @@ function RootApp() {
           <Text style={styles.kicker}>App Store v1</Text>
           <Text style={styles.title}>The Knoxville Drone Guy</Text>
         </View>
-        <View style={[styles.rolePill, isAdmin ? styles.adminPill : styles.clientPill]}>
-          <Text style={styles.roleText}>{isAdmin ? 'Admin' : 'Client'}</Text>
-        </View>
+        {user && (
+          <View style={[styles.rolePill, isAdmin ? styles.adminPill : styles.clientPill]}>
+            <Text style={styles.roleText}>{isAdmin ? 'Admin' : 'Client'}</Text>
+          </View>
+        )}
       </View>
       {!isFirebaseConfigured && (
         <View style={styles.notice}>
@@ -999,37 +1033,39 @@ function RootApp() {
         </Animated.View>
       </KeyboardAvoidingView>
       <MediaViewer attachment={selectedMedia} onClose={() => setSelectedMedia(null)} />
-      <View style={styles.tabBar}>
-        {tabs.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              style={styles.tabButton}
-              onPress={() => {
-                if (tab.key === 'chat') markChatViewed();
-                if (tab.key === 'notifications') markAlertsViewed();
-                setActiveTab(tab.key);
-              }}
-            >
-              <View style={styles.tabIconWrap}>
-                <Ionicons name={tab.icon} size={22} color={active ? theme.indigo : theme.muted} />
-                {tab.key === 'chat' && unreadMessageCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</Text>
-                  </View>
-                )}
-                {tab.key === 'notifications' && notificationBadgeCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{notificationBadgeCount > 99 ? '99+' : notificationBadgeCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.tabLabel, active && styles.activeTabLabel]}>{tab.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {user && (
+        <View style={styles.tabBar}>
+          {tabs.map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={styles.tabButton}
+                onPress={() => {
+                  if (tab.key === 'chat') markChatViewed();
+                  if (tab.key === 'notifications') markAlertsViewed();
+                  setActiveTab(tab.key);
+                }}
+              >
+                <View style={styles.tabIconWrap}>
+                  <Ionicons name={tab.icon} size={22} color={active ? theme.indigo : theme.muted} />
+                  {tab.key === 'chat' && unreadMessageCount > 0 && (
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeText}>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</Text>
+                    </View>
+                  )}
+                  {tab.key === 'notifications' && notificationBadgeCount > 0 && (
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeText}>{notificationBadgeCount > 99 ? '99+' : notificationBadgeCount}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.tabLabel, active && styles.activeTabLabel]}>{tab.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1054,24 +1090,28 @@ function WebsiteScreen() {
 }
 
 function ChatScreen({
+  clients,
   isAdmin,
   messages,
   onClearReference,
   onOpenMedia,
   onOpenReference,
   onSend,
+  onStartThread,
   pendingReference,
   selectedThread,
   setSelectedThreadId,
   threads,
   user,
 }: {
+  clients: AppUser[];
   isAdmin: boolean;
   messages: ChatMessage[];
   onClearReference: () => void;
   onOpenMedia: (attachment: Attachment) => void;
   onOpenReference: (requestId: string) => void;
   onSend: (body: string, attachment?: Attachment, reference?: ChatReference) => Promise<void>;
+  onStartThread: (client?: AppUser) => Promise<void>;
   pendingReference?: ChatReference;
   selectedThread?: ChatThread;
   setSelectedThreadId: (threadId: string) => void;
@@ -1079,6 +1119,34 @@ function ChatScreen({
   user: AppUser;
 }) {
   const [body, setBody] = useState('');
+  const [startingThread, setStartingThread] = useState(false);
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const filteredClients = useMemo(() => {
+    const needle = clientSearch.trim().toLowerCase();
+    const existingClientIds = new Set(threads.map((thread) => thread.clientId));
+    return clients
+      .filter((client) => !existingClientIds.has(client.uid))
+      .filter((client) => {
+        if (!needle) return true;
+        return `${client.displayName} ${client.email}`.toLowerCase().includes(needle);
+      })
+      .sort((first, second) => first.displayName.localeCompare(second.displayName));
+  }, [clientSearch, clients, threads]);
+
+  const startNewThread = async (client?: AppUser) => {
+    if (startingThread) return;
+    setStartingThread(true);
+    try {
+      await onStartThread(client);
+      setShowClientPicker(false);
+      setClientSearch('');
+    } catch (error) {
+      Alert.alert('Message not started', getFirebaseWriteMessage(error));
+    } finally {
+      setStartingThread(false);
+    }
+  };
 
   const attachFromCamera = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -1092,9 +1160,13 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
-      setBody('');
-      Keyboard.dismiss();
+      try {
+        await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
+        setBody('');
+        Keyboard.dismiss();
+      } catch (error) {
+        Alert.alert('Message not sent', getFirebaseWriteMessage(error));
+      }
     }
   };
 
@@ -1110,30 +1182,85 @@ function ChatScreen({
       videoMaxDuration: 60,
     });
     if (!result.canceled) {
-      await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
-      setBody('');
-      Keyboard.dismiss();
+      try {
+        await onSend(body, assetToAttachment(result.assets[0]), pendingReference);
+        setBody('');
+        Keyboard.dismiss();
+      } catch (error) {
+        Alert.alert('Message not sent', getFirebaseWriteMessage(error));
+      }
     }
   };
 
-  if (!selectedThread) {
-    return <EmptyState title="No chats yet" body="Client conversations will appear here after an invite or website chat." />;
-  }
-
   return (
     <View style={styles.screen}>
-      {isAdmin && (
+      <View style={styles.newMessagePanel}>
+        <View style={styles.flexOne}>
+          <Text style={styles.smallTitle}>New Message</Text>
+          <Text style={styles.muted}>
+            {isAdmin ? 'Choose a client to start a direct conversation.' : 'Send a direct message to The Knoxville Drone Guy.'}
+          </Text>
+        </View>
+        <SecondaryButton
+          label={isAdmin ? 'Choose Client' : 'New Message'}
+          icon="create-outline"
+          onPress={() => {
+            if (isAdmin) {
+              setShowClientPicker((current) => !current);
+              return;
+            }
+            startNewThread(user);
+          }}
+        />
+      </View>
+      {isAdmin && showClientPicker && (
+        <View style={styles.clientPickerPanel}>
+          <IconTextInput
+            icon="search-outline"
+            placeholder="Search clients"
+            value={clientSearch}
+            onChangeText={setClientSearch}
+          />
+          <View style={styles.clientPickerList}>
+            {filteredClients.length === 0 ? (
+              <Text style={styles.muted}>No clients without chats found.</Text>
+            ) : (
+              filteredClients.map((client) => (
+                <Pressable key={client.uid} style={styles.clientPickerRow} onPress={() => startNewThread(client)}>
+                  <View style={styles.flexOne}>
+                    <Text style={styles.clientPickerName}>{client.displayName}</Text>
+                    <Text style={styles.clientPickerEmail}>{client.email}</Text>
+                  </View>
+                  {startingThread ? (
+                    <ActivityIndicator color={theme.indigo} />
+                  ) : (
+                    <Ionicons name="chatbubble-ellipses-outline" size={20} color={theme.indigo} />
+                  )}
+                </Pressable>
+              ))
+            )}
+          </View>
+        </View>
+      )}
+      {isAdmin && threads.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selector}>
           {threads.map((thread) => (
             <Chip
               key={thread.id}
               label={thread.clientName}
-              active={selectedThread.id === thread.id}
+              active={selectedThread?.id === thread.id}
               onPress={() => setSelectedThreadId(thread.id)}
             />
           ))}
         </ScrollView>
       )}
+      {!selectedThread ? (
+        <EmptyState
+          title="No messages yet"
+          body={isAdmin ? 'Start a conversation by choosing a client.' : 'Tap New Message to send The Knoxville Drone Guy a direct message.'}
+        />
+      ) : (
+        <>
       <View style={styles.panelHeader}>
         <View>
           <Text style={styles.sectionTitle}>{isAdmin ? selectedThread.clientName : 'Chat with The Knoxville Drone Guy'}</Text>
@@ -1197,9 +1324,13 @@ function ChatScreen({
           <Pressable
             style={[styles.sendButton, !body.trim() && styles.disabledButton]}
             onPress={async () => {
-              await onSend(body, undefined, pendingReference);
-              setBody('');
-              Keyboard.dismiss();
+              try {
+                await onSend(body, undefined, pendingReference);
+                setBody('');
+                Keyboard.dismiss();
+              } catch (error) {
+                Alert.alert('Message not sent', getFirebaseWriteMessage(error));
+              }
             }}
             disabled={!body.trim()}
           >
@@ -1207,6 +1338,8 @@ function ChatScreen({
           </Pressable>
         </View>
       </View>
+        </>
+      )}
     </View>
   );
 }
@@ -1773,6 +1906,13 @@ function AdminCreateProjectForm({
     }
   }, [onlyClientId, selectedClientId]);
 
+  useEffect(() => {
+    if (sortedClients.length === 0) {
+      setClientMode('new');
+      setSelectedClientId('');
+    }
+  }, [sortedClients.length]);
+
   const filteredAddresses = useMemo(() => {
     const needle = address.trim().toLowerCase();
     if (needle.length < 3) return [];
@@ -1798,7 +1938,10 @@ function AdminCreateProjectForm({
       ...(!notes.trim() ? ['notes'] : []),
     ];
     setValidationErrors(errors);
-    if (errors.length > 0 || !scheduledDate || !scheduledTime) return;
+    if (errors.length > 0 || !scheduledDate || !scheduledTime) {
+      Alert.alert('Project not created', 'Fill out the required project details, then tap Create Project again.');
+      return;
+    }
 
     const scheduledAtDate = new Date(scheduledDate);
     scheduledAtDate.setHours(scheduledTime.getHours(), scheduledTime.getMinutes(), 0, 0);
@@ -1832,6 +1975,8 @@ function AdminCreateProjectForm({
       setScheduledTime(null);
       setValidationErrors([]);
       setCreatedCode(createdMessage);
+    } catch (error) {
+      Alert.alert('Project not created', getFirebaseWriteMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -2144,6 +2289,7 @@ function ShootRequestForm({
 
     setValidationErrors(errors);
     if (errors.length > 0) {
+      Alert.alert('Request not sent', 'Fill out every required field and choose at least one project scope option.');
       return;
     }
 
@@ -2200,6 +2346,8 @@ function ShootRequestForm({
       setFinishedVideoLengthOther('');
       setValidationErrors([]);
       setShowSentBanner(true);
+    } catch (error) {
+      Alert.alert('Request not sent', getFirebaseWriteMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -3714,6 +3862,22 @@ function getFirebaseAuthMessage(error: unknown) {
   return messages[code] ?? `Firebase returned ${code || 'an unknown auth error'}. Try again after restarting Expo.`;
 }
 
+function getFirebaseWriteMessage(error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : '';
+  const messages: Record<string, string> = {
+    'permission-denied': 'Firebase blocked this save. I updated the app rules, so install the newest TestFlight build and try again.',
+    'unavailable': 'Firebase is temporarily unavailable. Check your connection and try again.',
+    'deadline-exceeded': 'The save timed out. Check your connection and try again.',
+    'not-found': 'The linked project or chat was not found. Refresh the app and try again.',
+  };
+  if (messages[code]) return messages[code];
+  if (error instanceof Error && error.message) return error.message;
+  return 'Something stopped the save. Check your connection and try again.';
+}
+
 function normalizeProjectClaimCode(code: string) {
   const cleaned = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!cleaned) return '';
@@ -4024,6 +4188,19 @@ const styles = StyleSheet.create({
     maxHeight: 48,
     paddingHorizontal: 14,
     marginBottom: 6,
+  },
+  newMessagePanel: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.line,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: theme.surface,
   },
   chip: {
     height: 36,

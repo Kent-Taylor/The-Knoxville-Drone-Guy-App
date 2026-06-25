@@ -42,9 +42,9 @@
     "testflight:build": "npx eas-cli@latest build -p ios --profile production",
     "testflight:submit": "npx eas-cli@latest submit -p ios --latest --profile production",
     "testflight": "npx eas-cli@latest build -p ios --profile production --auto-submit-with-profile production",
-    "firebase:deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage",
+    "firebase:deploy:rules": "npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage",
     "firebase:deploy:functions": "npx firebase-tools deploy --only functions",
-    "firebase:deploy": "npx firebase-tools deploy --only firestore:rules,storage,functions"
+    "firebase:deploy": "npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions"
   },
   "private": true
 }
