@@ -85,12 +85,19 @@ export type Job = {
   routeDistanceUpdatedAt?: number;
   status: JobStatus;
   scheduledAt: number;
+  services?: ShootService[];
+  otherDescription?: string;
+  videoEditFormat?: VideoEditFormat;
+  videoEditOther?: string;
+  finishedVideoLength?: FinishedVideoLength;
+  finishedVideoLengthOther?: string;
   updates: JobUpdate[];
   liveLocation?: LiveLocation;
 };
 
 export type ShootService =
   | 'drone_video'
+  | 'indoor_drone_video'
   | 'drone_photo'
   | 'ground_video'
   | 'ground_photo'
@@ -169,7 +176,8 @@ export const locationVisibleStatuses: JobStatus[] = [
 ];
 
 export const shootServices: { value: ShootService; label: string }[] = [
-  { value: 'drone_video', label: 'Drone Video' },
+  { value: 'drone_video', label: 'Outdoor Drone Video' },
+  { value: 'indoor_drone_video', label: 'Indoor Drone Video' },
   { value: 'drone_photo', label: 'Drone Photo' },
   { value: 'ground_video', label: 'Ground Video' },
   { value: 'ground_photo', label: 'Ground Photo' },

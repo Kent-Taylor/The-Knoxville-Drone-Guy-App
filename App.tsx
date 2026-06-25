@@ -51,6 +51,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -233,6 +234,12 @@ type AdminProjectDraft = {
   address: string;
   notes: string;
   scheduledAt: number;
+  services: ShootService[];
+  otherDescription?: string;
+  videoEditFormat?: VideoEditFormat;
+  videoEditOther?: string;
+  finishedVideoLength?: FinishedVideoLength;
+  finishedVideoLengthOther?: string;
 };
 type ChatReference = NonNullable<ChatMessage['reference']>;
 type ShootRequestEdit = Pick<ShootRequest, 'title' | 'requestedWhen' | 'projectAddress' | 'details'>;
@@ -723,6 +730,12 @@ function RootApp() {
       routeDistanceUpdatedAt: Date.now(),
       status: 'scheduled',
       scheduledAt: project.scheduledAt,
+      services: project.services,
+      otherDescription: project.otherDescription,
+      videoEditFormat: project.videoEditFormat,
+      videoEditOther: project.videoEditOther,
+      finishedVideoLength: project.finishedVideoLength,
+      finishedVideoLengthOther: project.finishedVideoLengthOther,
       updates: [initialUpdate],
     };
 
@@ -773,6 +786,27 @@ function RootApp() {
     return claimCode ?? '';
   };
 
+  const deleteProject = async (job: Job) => {
+    if (!isAdmin) return;
+    if (isFirebaseConfigured && db) {
+      const firestore = db;
+      await Promise.all(
+        job.updates.map((update) =>
+          deleteDoc(doc(firestore, 'jobs', job.id, 'updates', update.firestoreId ?? update.id)),
+        ),
+      );
+      await deleteDoc(doc(firestore, 'jobs', job.id));
+    }
+    setData((current) => ({
+      ...current,
+      jobs: current.jobs.filter((item) => item.id !== job.id),
+    }));
+    if (selectedJobId === job.id) {
+      const nextJob = data.jobs.find((item) => item.id !== job.id);
+      setSelectedJobId(nextJob?.id ?? '');
+    }
+  };
+
   const editJobUpdate = async (
     job: Job,
     updateId: string,
@@ -798,6 +832,32 @@ function RootApp() {
               ...item,
               status: currentStatus,
               updates: editedUpdates,
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const deleteJobUpdate = async (job: Job, updateId: string) => {
+    const targetUpdate = job.updates.find((update) => update.id === updateId);
+    const remainingUpdates = job.updates
+      .filter((update) => update.id !== updateId)
+      .sort((first, second) => second.createdAt - first.createdAt);
+    const currentStatus = remainingUpdates[0]?.status ?? job.status;
+
+    if (isFirebaseConfigured && db && targetUpdate) {
+      await deleteDoc(doc(db, 'jobs', job.id, 'updates', targetUpdate.firestoreId ?? targetUpdate.id));
+      await updateDoc(doc(db, 'jobs', job.id), { status: currentStatus });
+    }
+
+    setData((current) => ({
+      ...current,
+      jobs: current.jobs.map((item) =>
+        item.id === job.id
+          ? {
+              ...item,
+              status: currentStatus,
+              updates: remainingUpdates,
             }
           : item,
       ),
@@ -1009,6 +1069,8 @@ function RootApp() {
           jobs={visibleJobs}
           onAcceptShootRequest={acceptShootRequest}
           onCreateAdminProject={createAdminProject}
+          onDeleteProject={deleteProject}
+          onDeleteUpdate={deleteJobUpdate}
           onOpenMedia={setSelectedMedia}
           onRequestShootDetails={requestShootDetails}
           onSubmitShootRequest={submitShootRequest}
@@ -1449,6 +1511,8 @@ function JobsScreen({
   jobs,
   onAcceptShootRequest,
   onCreateAdminProject,
+  onDeleteProject,
+  onDeleteUpdate,
   onEditUpdate,
   onOpenMedia,
   onRequestShootDetails,
@@ -1467,6 +1531,8 @@ function JobsScreen({
   jobs: Job[];
   onAcceptShootRequest: (request: ShootRequest) => Promise<void>;
   onCreateAdminProject: (project: AdminProjectDraft) => Promise<string>;
+  onDeleteProject: (job: Job) => Promise<void>;
+  onDeleteUpdate: (job: Job, updateId: string) => Promise<void>;
   onEditUpdate: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   onOpenMedia: (attachment: Attachment) => void;
   onRequestShootDetails: (request: ShootRequest) => Promise<void>;
@@ -1581,6 +1647,27 @@ function JobsScreen({
     setEditingRequestId(null);
   };
 
+  const confirmDeleteProject = (job: Job) => {
+    Alert.alert(
+      'Delete project?',
+      `This will remove "${job.title}" from the app.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await onDeleteProject(job);
+            } catch (error) {
+              Alert.alert('Project not deleted', getFirebaseWriteMessage(error));
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderProjectCard = (job: Job, isHistory = false) => {
     const selected = selectedJob.id === job.id;
     const showMap = job.liveLocation && locationVisibleStatuses.includes(job.status);
@@ -1595,6 +1682,9 @@ function JobsScreen({
           <View style={styles.flexOne}>
             <Text style={styles.jobListTitle}>{job.title}</Text>
             <Text style={styles.muted}>{job.clientName} · {job.address}</Text>
+            {job.services && job.services.length > 0 && (
+              <Text style={styles.claimCodeInline}>Project Scope: {formatServices(job.services)}</Text>
+            )}
             {isAdmin && job.projectClaimCode && (
               <Text style={styles.claimCodeInline}>
                 Client Signup Code: {job.projectClaimCode} · {job.claimStatus === 'claimed' ? 'Claimed' : 'Unclaimed'}
@@ -1616,6 +1706,7 @@ function JobsScreen({
                 job={job}
                 isLast={index === visibleUpdates.length - 1}
                 onOpenMedia={onOpenMedia}
+                onDelete={onDeleteUpdate}
                 onSave={onEditUpdate}
                 update={update}
               />
@@ -1902,6 +1993,7 @@ function JobsScreen({
             })}
           </View>
           <PrimaryButton label="Attach Media Update" icon="cloud-upload-outline" onPress={addMediaUpdate} />
+          <SecondaryButton label="Delete Project" icon="trash-outline" variant="danger" onPress={() => confirmDeleteProject(selectedJob)} />
           {pendingMedia && (
             <View style={styles.pendingMediaPanel}>
               <View style={styles.pendingMediaInfo}>
@@ -1939,6 +2031,14 @@ function AdminCreateProjectForm({
   const [title, setTitle] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [services, setServices] = useState<ShootService[]>([]);
+  const [otherDescription, setOtherDescription] = useState('');
+  const [videoEditFormat, setVideoEditFormat] = useState<VideoEditFormat | null>(null);
+  const [showVideoEditFormatPicker, setShowVideoEditFormatPicker] = useState(false);
+  const [videoEditOther, setVideoEditOther] = useState('');
+  const [finishedVideoLength, setFinishedVideoLength] = useState<FinishedVideoLength | null>(null);
+  const [showFinishedVideoLengthPicker, setShowFinishedVideoLengthPicker] = useState(false);
+  const [finishedVideoLengthOther, setFinishedVideoLengthOther] = useState('');
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [scheduledTime, setScheduledTime] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -1987,6 +2087,38 @@ function AdminCreateProjectForm({
     setValidationErrors((current) => current.filter((item) => item !== field));
   };
   const hasError = (field: string) => validationErrors.includes(field);
+  const selectedOther = services.includes('other');
+  const selectedVideoEdit = services.includes('edit_into_video');
+  const requiresFinishedVideoLength = selectedVideoEdit && (videoEditFormat === 'long_format' || videoEditFormat === 'other');
+
+  const toggleService = (service: ShootService) => {
+    setServices((current) => {
+      const nextServices = current.includes(service) ? current.filter((item) => item !== service) : [...current, service];
+      if (service === 'edit_into_video' && current.includes(service)) {
+        setVideoEditFormat(null);
+        setVideoEditOther('');
+        setFinishedVideoLength(null);
+        setFinishedVideoLengthOther('');
+      }
+      if (service === 'other' && current.includes(service)) {
+        setOtherDescription('');
+      }
+      return nextServices;
+    });
+    setValidationErrors((current) =>
+      current.filter(
+        (item) =>
+          ![
+            'services',
+            'otherDescription',
+            'videoEditFormat',
+            'videoEditOther',
+            'finishedVideoLength',
+            'finishedVideoLengthOther',
+          ].includes(item),
+      ),
+    );
+  };
 
   const submit = async () => {
     if (submitting || submitLock.current) return;
@@ -1998,6 +2130,14 @@ function AdminCreateProjectForm({
       ...(!scheduledDate ? ['scheduledDate'] : []),
       ...(!scheduledTime ? ['scheduledTime'] : []),
       ...(!address.trim() ? ['address'] : []),
+      ...(services.length === 0 ? ['services'] : []),
+      ...(selectedOther && !otherDescription.trim() ? ['otherDescription'] : []),
+      ...(selectedVideoEdit && !videoEditFormat ? ['videoEditFormat'] : []),
+      ...(selectedVideoEdit && videoEditFormat === 'other' && !videoEditOther.trim() ? ['videoEditOther'] : []),
+      ...(requiresFinishedVideoLength && !finishedVideoLength ? ['finishedVideoLength'] : []),
+      ...(requiresFinishedVideoLength && finishedVideoLength === 'other' && !finishedVideoLengthOther.trim()
+        ? ['finishedVideoLengthOther']
+        : []),
       ...(!notes.trim() ? ['notes'] : []),
     ];
     setValidationErrors(errors);
@@ -2022,6 +2162,13 @@ function AdminCreateProjectForm({
         address: address.trim(),
         notes: notes.trim(),
         scheduledAt: scheduledAtDate.getTime(),
+        services,
+        otherDescription: selectedOther ? otherDescription.trim() : undefined,
+        videoEditFormat: selectedVideoEdit ? videoEditFormat ?? undefined : undefined,
+        videoEditOther: selectedVideoEdit && videoEditFormat === 'other' ? videoEditOther.trim() : undefined,
+        finishedVideoLength: requiresFinishedVideoLength ? finishedVideoLength ?? undefined : undefined,
+        finishedVideoLengthOther:
+          requiresFinishedVideoLength && finishedVideoLength === 'other' ? finishedVideoLengthOther.trim() : undefined,
       });
       const createdMessage =
         clientMode === 'existing'
@@ -2035,6 +2182,12 @@ function AdminCreateProjectForm({
       setTitle('');
       setAddress('');
       setNotes('');
+      setServices([]);
+      setOtherDescription('');
+      setVideoEditFormat(null);
+      setVideoEditOther('');
+      setFinishedVideoLength(null);
+      setFinishedVideoLengthOther('');
       setScheduledDate(null);
       setScheduledTime(null);
       setValidationErrors([]);
@@ -2234,6 +2387,133 @@ function AdminCreateProjectForm({
                 </Pressable>
               ))}
             </View>
+          )}
+          <Text style={styles.formLabel}>Project Scope</Text>
+          <View style={[styles.serviceGrid, hasError('services') && styles.validationErrorGroup]}>
+            {shootServices.map((service) => {
+              const active = services.includes(service.value);
+              return (
+                <Pressable
+                  key={service.value}
+                  style={[styles.serviceButton, active && styles.activeServiceButton]}
+                  onPress={() => toggleService(service.value)}
+                >
+                  <Ionicons name={serviceIcon(service.value)} size={21} color={active ? '#ffffff' : theme.indigo} />
+                  <Text style={[styles.serviceButtonText, active && styles.activeServiceButtonText]}>{service.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {selectedVideoEdit && (
+            <View style={styles.conditionalPanel}>
+              <Text style={styles.formLabel}>Video Type</Text>
+              <Pressable
+                style={[styles.formSelectRow, hasError('videoEditFormat') && styles.validationErrorBorder]}
+                onPress={() => setShowVideoEditFormatPicker((current) => !current)}
+              >
+                <Ionicons name="film-outline" size={22} color={theme.muted} />
+                <Text style={[styles.formSelectText, !videoEditFormat && styles.formPlaceholderText]}>
+                  {formatVideoEditFormat(videoEditFormat)}
+                </Text>
+                <Ionicons name={showVideoEditFormatPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
+              </Pressable>
+              {showVideoEditFormatPicker && (
+                <View style={styles.selectOptionList}>
+                  {videoEditFormats.map((format) => (
+                    <Pressable
+                      key={format.value}
+                      style={styles.selectOptionRow}
+                      onPress={() => {
+                        setVideoEditFormat(format.value);
+                        setShowVideoEditFormatPicker(false);
+                        setFinishedVideoLength(null);
+                        setFinishedVideoLengthOther('');
+                        clearValidationError('videoEditFormat');
+                        clearValidationError('videoEditOther');
+                        clearValidationError('finishedVideoLength');
+                        clearValidationError('finishedVideoLengthOther');
+                      }}
+                    >
+                      <Text style={styles.selectOptionText}>{format.label}</Text>
+                      {videoEditFormat === format.value && <Ionicons name="checkmark-outline" size={18} color={theme.indigo} />}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {videoEditFormat === 'other' && (
+                <IconTextInput
+                  error={hasError('videoEditOther')}
+                  icon="create-outline"
+                  placeholder="Describe the video type"
+                  value={videoEditOther}
+                  onChangeText={(value) => {
+                    setVideoEditOther(value);
+                    clearValidationError('videoEditOther');
+                  }}
+                  multiline
+                />
+              )}
+              {requiresFinishedVideoLength && (
+                <>
+                  <Text style={styles.formLabel}>Length of Finished Video</Text>
+                  <Pressable
+                    style={[styles.formSelectRow, hasError('finishedVideoLength') && styles.validationErrorBorder]}
+                    onPress={() => setShowFinishedVideoLengthPicker((current) => !current)}
+                  >
+                    <Ionicons name="time-outline" size={22} color={theme.muted} />
+                    <Text style={[styles.formSelectText, !finishedVideoLength && styles.formPlaceholderText]}>
+                      {formatFinishedVideoLength(finishedVideoLength)}
+                    </Text>
+                    <Ionicons name={showFinishedVideoLengthPicker ? 'chevron-up-outline' : 'chevron-down-outline'} size={19} color={theme.muted} />
+                  </Pressable>
+                  {showFinishedVideoLengthPicker && (
+                    <View style={styles.selectOptionList}>
+                      {finishedVideoLengths.map((length) => (
+                        <Pressable
+                          key={length.value}
+                          style={styles.selectOptionRow}
+                          onPress={() => {
+                            setFinishedVideoLength(length.value);
+                            setShowFinishedVideoLengthPicker(false);
+                            setFinishedVideoLengthOther('');
+                            clearValidationError('finishedVideoLength');
+                            clearValidationError('finishedVideoLengthOther');
+                          }}
+                        >
+                          <Text style={styles.selectOptionText}>{length.label}</Text>
+                          {finishedVideoLength === length.value && <Ionicons name="checkmark-outline" size={18} color={theme.indigo} />}
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {finishedVideoLength === 'other' && (
+                    <IconTextInput
+                      error={hasError('finishedVideoLengthOther')}
+                      icon="create-outline"
+                      placeholder="Enter finished video length"
+                      value={finishedVideoLengthOther}
+                      onChangeText={(value) => {
+                        setFinishedVideoLengthOther(value);
+                        clearValidationError('finishedVideoLengthOther');
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          )}
+          {services.includes('other') && (
+            <IconTextInput
+              error={hasError('otherDescription')}
+              icon="ellipsis-horizontal-circle-outline"
+              placeholder="Describe the project scope"
+              value={otherDescription}
+              onChangeText={(value) => {
+                setOtherDescription(value);
+                clearValidationError('otherDescription');
+              }}
+              multiline
+            />
           )}
           <IconTextInput
             error={hasError('notes')}
@@ -2790,6 +3070,7 @@ function JobUpdateRow({
   isAdmin,
   isLast,
   job,
+  onDelete,
   onOpenMedia,
   onSave,
   update,
@@ -2797,6 +3078,7 @@ function JobUpdateRow({
   isAdmin: boolean;
   isLast: boolean;
   job: Job;
+  onDelete: (job: Job, updateId: string) => Promise<void>;
   onOpenMedia: (attachment: Attachment) => void;
   onSave: (job: Job, updateId: string, changes: Pick<JobUpdate, 'status' | 'note' | 'createdAt'>) => Promise<void>;
   update: JobUpdate;
@@ -2840,6 +3122,27 @@ function JobUpdateRow({
     setDraftNote(update.note);
     setDraftDate(new Date(update.createdAt));
     setEditing(false);
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete status update?',
+      `This will remove the ${statusLabel(update.status)} progress update.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await onDelete(job, update.id);
+            } catch (error) {
+              Alert.alert('Status not deleted', getFirebaseWriteMessage(error));
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -2917,6 +3220,7 @@ function JobUpdateRow({
             )}
             <View style={styles.rowActions}>
               <SecondaryButton label="Cancel" icon="close-outline" onPress={cancel} />
+              <SecondaryButton label="Delete" icon="trash-outline" variant="danger" onPress={confirmDelete} />
               <PrimaryButton label={saving ? 'Saving...' : 'Save Update'} icon="save-outline" onPress={save} />
             </View>
           </View>
@@ -2925,10 +3229,16 @@ function JobUpdateRow({
             <View style={styles.timelineTitleRow}>
               <Text style={styles.timelineTitle}>{statusLabel(update.status)}</Text>
               {isAdmin && (
-                <Pressable style={styles.timelineEditButton} onPress={() => setEditing(true)}>
-                  <Ionicons name="create-outline" size={17} color={theme.indigo} />
-                  <Text style={styles.timelineEditText}>Edit</Text>
-                </Pressable>
+                <View style={styles.rowActionsCompact}>
+                  <Pressable style={styles.timelineEditButton} onPress={() => setEditing(true)}>
+                    <Ionicons name="create-outline" size={17} color={theme.indigo} />
+                    <Text style={styles.timelineEditText}>Edit</Text>
+                  </Pressable>
+                  <Pressable style={[styles.timelineEditButton, styles.timelineDeleteButton]} onPress={confirmDelete}>
+                    <Ionicons name="trash-outline" size={17} color={theme.danger} />
+                    <Text style={styles.timelineDeleteText}>Delete</Text>
+                  </Pressable>
+                </View>
               )}
             </View>
             <Text style={styles.timelineText}>{update.note}</Text>
@@ -3738,11 +4048,22 @@ function IconTextInput({
   );
 }
 
-function SecondaryButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+function SecondaryButton({
+  label,
+  icon,
+  onPress,
+  variant = 'default',
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  variant?: 'default' | 'danger';
+}) {
+  const danger = variant === 'danger';
   return (
-    <Pressable style={styles.secondaryButton} onPress={onPress}>
-      <Ionicons name={icon} size={17} color={theme.indigo} />
-      <Text style={styles.secondaryButtonText}>{label}</Text>
+    <Pressable style={[styles.secondaryButton, danger && styles.dangerSecondaryButton]} onPress={onPress}>
+      <Ionicons name={icon} size={17} color={danger ? theme.danger : theme.pink} />
+      <Text style={[styles.secondaryButtonText, danger && styles.dangerSecondaryButtonText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -3853,6 +4174,7 @@ function formatVideoEditDetails(request: ShootRequest) {
 function serviceIcon(service: ShootService): keyof typeof Ionicons.glyphMap {
   const icons: Record<ShootService, keyof typeof Ionicons.glyphMap> = {
     drone_video: 'videocam-outline',
+    indoor_drone_video: 'business-outline',
     drone_photo: 'camera-outline',
     ground_video: 'videocam-outline',
     ground_photo: 'image-outline',
@@ -4182,6 +4504,7 @@ const theme = {
   purple: '#5a2ed6',
   pink: '#ff5c8a',
   coral: '#ff706f',
+  danger: '#dc2626',
   ink: '#141827',
   muted: '#6e7283',
   line: '#dedff0',
@@ -4921,6 +5244,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
+  rowActionsCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   pendingMediaPanel: {
     borderRadius: 8,
     borderWidth: 1,
@@ -5186,6 +5515,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  timelineDeleteButton: {
+    backgroundColor: '#fff1f2',
+  },
+  timelineDeleteText: {
+    color: theme.danger,
+    fontSize: 12,
+    fontWeight: '800',
+  },
   timelineText: {
     color: theme.muted,
     marginTop: 8,
@@ -5417,6 +5754,13 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: theme.pink,
     fontWeight: '800',
+  },
+  dangerSecondaryButton: {
+    borderColor: theme.danger,
+    backgroundColor: '#fff1f2',
+  },
+  dangerSecondaryButtonText: {
+    color: theme.danger,
   },
   checkItem: {
     flexDirection: 'row',
