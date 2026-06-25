@@ -3227,7 +3227,7 @@ function JobUpdateRow({
         ) : (
           <>
             <View style={styles.timelineTitleRow}>
-              <Text style={styles.timelineTitle}>{statusLabel(update.status)}</Text>
+              <Text style={styles.timelineTitle} numberOfLines={2}>{statusLabel(update.status)}</Text>
               {isAdmin && (
                 <View style={styles.rowActionsCompact}>
                   <Pressable style={styles.timelineEditButton} onPress={() => setEditing(true)}>
@@ -5241,6 +5241,7 @@ const styles = StyleSheet.create({
   },
   rowActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 8,
   },
@@ -5248,6 +5249,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    justifyContent: 'flex-end',
     gap: 8,
   },
   pendingMediaPanel: {
@@ -5487,27 +5489,35 @@ const styles = StyleSheet.create({
   },
   timelineBody: {
     flex: 1,
+    minWidth: 0,
     paddingBottom: 22,
   },
   timelineTitleRow: {
     minHeight: 36,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 10,
   },
   timelineTitle: {
+    flex: 1,
+    minWidth: 130,
     color: theme.ink,
     fontSize: 20,
     fontWeight: '800',
   },
   timelineEditButton: {
-    minHeight: 30,
+    minWidth: 84,
+    minHeight: 38,
     borderRadius: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
+    borderWidth: 1,
+    borderColor: '#ded7ff',
     backgroundColor: theme.softPurple,
   },
   timelineEditText: {
@@ -5516,6 +5526,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   timelineDeleteButton: {
+    borderColor: '#fecdd3',
     backgroundColor: '#fff1f2',
   },
   timelineDeleteText: {
