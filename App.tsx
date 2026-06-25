@@ -603,7 +603,10 @@ function RootApp() {
         liveLocation: liveLocation ?? null,
       });
       await setDoc(doc(db, 'jobs', job.id, 'updates', update.id), toFirestoreData(update));
+      scheduleLocalNotification('Project status updated', `${job.clientName} would be notified: ${statusLabel(status)}.`);
+      return;
     }
+
     setData((current) => ({
       ...current,
       jobs: current.jobs.map((item) =>
@@ -1484,6 +1487,8 @@ function JobsScreen({
   const [requestsExpanded, setRequestsExpanded] = useState(false);
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(focusedRequestId ?? null);
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const [statusUpdatingKey, setStatusUpdatingKey] = useState('');
+  const statusUpdateLock = useRef('');
   const [requestDraft, setRequestDraft] = useState<ShootRequestEdit>({
     title: '',
     requestedWhen: '',
@@ -1537,9 +1542,24 @@ function JobsScreen({
     }
   };
 
-  const postPendingMediaUpdate = () => {
+  const runStatusUpdate = async (job: Job, status: JobStatus, updateNote?: string, attachment?: Attachment) => {
+    const lockKey = `${job.id}:${status}`;
+    if (statusUpdateLock.current) return;
+    statusUpdateLock.current = lockKey;
+    setStatusUpdatingKey(lockKey);
+    try {
+      await onUpdateStatus(job, status, updateNote, attachment);
+    } catch (error) {
+      Alert.alert('Status not updated', getFirebaseWriteMessage(error));
+    } finally {
+      statusUpdateLock.current = '';
+      setStatusUpdatingKey('');
+    }
+  };
+
+  const postPendingMediaUpdate = async () => {
     if (!pendingMedia) return;
-    onUpdateStatus(selectedJob, selectedJob.status, note || 'Media update added.', pendingMedia);
+    await runStatusUpdate(selectedJob, selectedJob.status, note || 'Media update added.', pendingMedia);
     setPendingMedia(null);
     setNote('');
   };
@@ -1565,6 +1585,7 @@ function JobsScreen({
     const selected = selectedJob.id === job.id;
     const showMap = job.liveLocation && locationVisibleStatuses.includes(job.status);
     const statusColors = jobStatusColors(job.status);
+    const visibleUpdates = dedupeRapidStatusUpdates(job.updates);
     return (
       <View
         key={job.id}
@@ -1588,12 +1609,12 @@ function JobsScreen({
         {selected && (
           <View style={styles.projectProgressPanel}>
             <Text style={styles.projectProgressHeading}>Progress updates</Text>
-            {job.updates.map((update, index) => (
+            {visibleUpdates.map((update, index) => (
               <JobUpdateRow
                 key={update.id}
                 isAdmin={isAdmin}
                 job={job}
-                isLast={index === job.updates.length - 1}
+                isLast={index === visibleUpdates.length - 1}
                 onOpenMedia={onOpenMedia}
                 onSave={onEditUpdate}
                 update={update}
@@ -1856,20 +1877,29 @@ function JobsScreen({
             multiline
           />
           <View style={styles.statusGrid}>
-            {jobStatuses.map((status) => (
-              <Pressable
-                key={status.value}
-                style={[styles.statusButton, selectedJob.status === status.value && styles.activeStatusButton]}
-                onPress={() => {
-                  onUpdateStatus(selectedJob, status.value, note);
-                  setNote('');
-                }}
-              >
-                <Text style={[styles.statusButtonText, selectedJob.status === status.value && styles.activeStatusButtonText]}>
-                  {status.label}
-                </Text>
-              </Pressable>
-            ))}
+            {jobStatuses.map((status) => {
+              const updating = statusUpdatingKey === `${selectedJob.id}:${status.value}`;
+              return (
+                <Pressable
+                  key={status.value}
+                  style={[
+                    styles.statusButton,
+                    selectedJob.status === status.value && styles.activeStatusButton,
+                    statusUpdateLock.current && styles.disabledButton,
+                  ]}
+                  disabled={Boolean(statusUpdateLock.current)}
+                  onPress={async () => {
+                    await runStatusUpdate(selectedJob, status.value, note);
+                    setNote('');
+                  }}
+                >
+                  {updating && <ActivityIndicator size="small" color={selectedJob.status === status.value ? '#ffffff' : theme.indigo} />}
+                  <Text style={[styles.statusButtonText, selectedJob.status === status.value && styles.activeStatusButtonText]}>
+                    {updating ? 'Updating...' : status.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <PrimaryButton label="Attach Media Update" icon="cloud-upload-outline" onPress={addMediaUpdate} />
           {pendingMedia && (
@@ -3932,6 +3962,20 @@ function toFirestoreData<T>(value: T): T {
       .filter(([, entry]) => entry !== undefined)
       .map(([key, entry]) => [key, toFirestoreData(entry)]),
   ) as T;
+}
+
+function dedupeRapidStatusUpdates(updates: JobUpdate[]) {
+  const sortedUpdates = [...updates].sort((first, second) => second.createdAt - first.createdAt);
+  return sortedUpdates.filter((update, index) => {
+    const nextUpdate = sortedUpdates[index + 1];
+    if (!nextUpdate) return true;
+    const sameContent =
+      update.status === nextUpdate.status &&
+      update.note === nextUpdate.note &&
+      !update.attachment &&
+      !nextUpdate.attachment;
+    return !(sameContent && Math.abs(update.createdAt - nextUpdate.createdAt) < 10000);
+  });
 }
 
 function normalizeProjectClaimCode(code: string) {
