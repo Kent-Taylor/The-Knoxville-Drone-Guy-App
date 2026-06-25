@@ -556,7 +556,7 @@ function RootApp() {
       isAdmin &&
       data.shootRequests.find((request) => request.id === reference.id)?.status !== 'accepted';
     if (isFirebaseConfigured && db) {
-      await addDoc(collection(db, 'chatThreads', selectedThread.id, 'messages'), message);
+      await addDoc(collection(db, 'chatThreads', selectedThread.id, 'messages'), toFirestoreData(message));
       await updateDoc(doc(db, 'chatThreads', selectedThread.id), {
         lastMessage: message.body,
         updatedAt: message.createdAt,
@@ -602,7 +602,7 @@ function RootApp() {
         status,
         liveLocation: liveLocation ?? null,
       });
-      await setDoc(doc(db, 'jobs', job.id, 'updates', update.id), update);
+      await setDoc(doc(db, 'jobs', job.id, 'updates', update.id), toFirestoreData(update));
     }
     setData((current) => ({
       ...current,
@@ -723,8 +723,8 @@ function RootApp() {
     };
 
     if (isFirebaseConfigured && db) {
-      await setDoc(doc(db, 'jobs', job.id), { ...job, updates: [] });
-      await setDoc(doc(db, 'jobs', job.id, 'updates', initialUpdate.id), initialUpdate);
+      await setDoc(doc(db, 'jobs', job.id), toFirestoreData({ ...job, updates: [] }));
+      await setDoc(doc(db, 'jobs', job.id, 'updates', initialUpdate.id), toFirestoreData(initialUpdate));
     }
 
     setData((current) => ({
@@ -787,7 +787,7 @@ function RootApp() {
       createdAt: Date.now(),
     };
     if (isFirebaseConfigured && db) {
-      await addDoc(collection(db, 'shootRequests'), shootRequest);
+      await addDoc(collection(db, 'shootRequests'), toFirestoreData(shootRequest));
     }
     setData((current) => ({
       ...current,
@@ -823,8 +823,8 @@ function RootApp() {
     };
     if (isFirebaseConfigured && db) {
       await updateDoc(doc(db, 'shootRequests', request.id), { status: 'accepted' });
-      await setDoc(doc(db, 'jobs', acceptedJob.id), { ...acceptedJob, updates: [] });
-      await setDoc(doc(db, 'jobs', acceptedJob.id, 'updates', acceptedJob.updates[0].id), acceptedJob.updates[0]);
+      await setDoc(doc(db, 'jobs', acceptedJob.id), toFirestoreData({ ...acceptedJob, updates: [] }));
+      await setDoc(doc(db, 'jobs', acceptedJob.id, 'updates', acceptedJob.updates[0].id), toFirestoreData(acceptedJob.updates[0]));
     }
     setData((current) => ({
       ...current,
@@ -860,7 +860,7 @@ function RootApp() {
         : {}),
     };
     if (isFirebaseConfigured && db) {
-      await updateDoc(doc(db, 'shootRequests', request.id), updatedFields);
+      await updateDoc(doc(db, 'shootRequests', request.id), toFirestoreData(updatedFields));
     }
     setData((current) => ({
       ...current,
@@ -881,7 +881,7 @@ function RootApp() {
       } satisfies ChatThread);
     if (!existingThread) {
       if (isFirebaseConfigured && db) {
-        await setDoc(doc(db, 'chatThreads', thread.id), thread);
+        await setDoc(doc(db, 'chatThreads', thread.id), toFirestoreData(thread));
       }
       setData((current) => ({ ...current, threads: [thread, ...current.threads] }));
     }
@@ -912,7 +912,7 @@ function RootApp() {
     };
 
     if (isFirebaseConfigured && db) {
-      await setDoc(doc(db, 'chatThreads', thread.id), thread);
+      await setDoc(doc(db, 'chatThreads', thread.id), toFirestoreData(thread));
     }
     setData((current) => ({ ...current, threads: [thread, ...current.threads] }));
     setSelectedThreadId(thread.id);
@@ -3868,7 +3868,7 @@ function getFirebaseWriteMessage(error: unknown) {
       ? error.code
       : '';
   const messages: Record<string, string> = {
-    'permission-denied': 'Firebase blocked this save. I updated the app rules, so install the newest TestFlight build and try again.',
+    'permission-denied': 'Firebase blocked this save. The app rules or your account permissions need an update.',
     'unavailable': 'Firebase is temporarily unavailable. Check your connection and try again.',
     'deadline-exceeded': 'The save timed out. Check your connection and try again.',
     'not-found': 'The linked project or chat was not found. Refresh the app and try again.',
@@ -3876,6 +3876,19 @@ function getFirebaseWriteMessage(error: unknown) {
   if (messages[code]) return messages[code];
   if (error instanceof Error && error.message) return error.message;
   return 'Something stopped the save. Check your connection and try again.';
+}
+
+function toFirestoreData<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => toFirestoreData(item)).filter((item) => item !== undefined) as T;
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .map(([key, entry]) => [key, toFirestoreData(entry)]),
+  ) as T;
 }
 
 function normalizeProjectClaimCode(code: string) {

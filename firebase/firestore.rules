@@ -67,13 +67,6 @@ service cloud.firestore {
         && request.resource.data.details is string;
     }
 
-    function isValidChatThread() {
-      return request.resource.data.clientId is string
-        && request.resource.data.clientName is string
-        && request.resource.data.lastMessage is string
-        && request.resource.data.updatedAt is number;
-    }
-
     function isChatThreadOwner() {
       return signedIn() && resource.data.clientId == request.auth.uid;
     }
@@ -88,11 +81,10 @@ service cloud.firestore {
     match /chatThreads/{threadId} {
       allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
       allow create: if isAdmin()
-        || (signedIn() && isValidChatThread() && request.resource.data.clientId == request.auth.uid);
+        || (signedIn() && request.resource.data.clientId == request.auth.uid);
       allow update: if isAdmin()
         || (
           isChatThreadOwner()
-          && isValidChatThread()
           && request.resource.data.clientId == resource.data.clientId
           && request.resource.data.clientName == resource.data.clientName
         );
